@@ -2133,7 +2133,7 @@
             qWords.forEach(function(w){
                 var wNS=w.replace(/\s/g,'');
                 if(key.includes(w)||keyNS.includes(wNS))sc+=3;
-                if(val.includes(w)||valNS.includes(wNS))sc+=1;
+                if(val.includes(w)||valNS.includes(wNS))sc+=2;
             });
             return {k:e[0],v:(typeof e[1]==='string'?e[1]:(e[1].text||e[1].content||'')),s:sc};
         });
