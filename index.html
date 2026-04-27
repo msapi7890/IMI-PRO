@@ -2598,73 +2598,100 @@
             '<button onclick="analyzeSchedPasteText()" style="margin-top:10px;width:100%;padding:10px;border-radius:9px;background:var(--active-focus-color);color:#fff;border:none;font-size:13px;font-weight:900;cursor:pointer;">🔍 적용 미리보기</button>';
         setTimeout(function(){var ta=document.getElementById('schedPasteArea');if(ta)ta.focus();},100);
     }
+    /* 그룹 헤더 키워드 → gIdx */
+    var _PASTE_GRP={'09시':0,'9시':0,'12시':3,'15시':1,'17시':4,'야간':2,'나이트':2};
+    /* 직원명이 아닌 셀 판별 (2~3글자 순수 한글만 직원명으로 인정) */
+    function _isPasteName(s){return /^[가-힣]{2,3}$/.test(s)&&!({'날짜':1,'요일':1,'합계':1,'평일':1,'주말':1,'공휴':1,'야간':1,'12시':1,'15시':1,'17시':1,'09시':1,'9시':1}[s]);}
+    /* 그룹 헤더 행 → 열별 gIdx 맵 */
+    function _buildPasteColGrpMap(grpRow){
+        var map={},cur=-1;
+        for(var c=0;c<grpRow.length;c++){
+            var cell=(grpRow[c]||'').trim();
+            if(_PASTE_GRP[cell]!==undefined){cur=_PASTE_GRP[cell];}
+            else if(cell&&!_isPasteName(cell)){cur=-1;} /* 비그룹 구분자(휴무가능 등) → 리셋 */
+            if(cur>=0)map[c]=cur;
+        }
+        return map;
+    }
     function analyzeSchedPasteText(){
         var ta=document.getElementById('schedPasteArea');
         if(!ta)return;
         var text=ta.value.trim();
         if(!text){alert('내용을 붙여넣어 주세요.');return;}
-        /* TSV 파싱 (엑셀 복사본 = 탭 구분) */
         var rows=text.split('\n').map(function(r){return r.split('\t').map(function(c){return c.trim();});});
-        /* 헤더 행 탐색: 다음 행의 첫 셀이 날짜 숫자(1~31)이면 현재 행이 헤더 */
-        var headerIdx=0;
+        /* 직원헤더 행 탐색: 다음 행 첫 셀이 날짜 숫자면 현재 행 = 직원헤더 */
+        var staffHdrIdx=0;
         for(var i=0;i<Math.min(rows.length-1,6);i++){
-            var nf=(rows[i+1]&&rows[i+1][0])||'';
-            var nd=parseInt(nf);
-            if(nd>=1&&nd<=31){headerIdx=i;break;}
+            if(/^[1-9]\d?$/.test((rows[i+1]&&rows[i+1][0])||'')){staffHdrIdx=i;break;}
         }
-        var headers=rows[headerIdx];
-        /* 날짜 열 탐색 */
-        var dateColIdx=0;
+        /* 그룹헤더 행: 직원헤더 바로 위 행 */
+        var grpHdrIdx=staffHdrIdx>0?staffHdrIdx-1:-1;
+        var colGrpMap=grpHdrIdx>=0?_buildPasteColGrpMap(rows[grpHdrIdx]):{};
+        var headers=rows[staffHdrIdx];
+        /* 날짜 열 */
+        var dateCol=0;
+        for(var c=0;c<headers.length;c++){if(headers[c]==='날짜'||headers[c]==='일'){dateCol=c;break;}}
+        /* 그룹별 다음 staffId 계산 */
+        var nextIdByGrp={};
+        SCHED_GROUPS.forEach(function(g,gi){
+            var ids=Object.keys(_schedNames[g.key]||{}).map(Number);
+            nextIdByGrp[gi]=ids.length>0?Math.max.apply(null,ids)+1:0;
+        });
+        /* 열↔직원 매핑 (미등록 직원 자동 추가) */
+        var colStaffMap={};var newStaff=[];
         for(var c=0;c<headers.length;c++){
-            var h=headers[c];
-            if(h==='날짜'||h==='일'||h==='날'){dateColIdx=c;break;}
-        }
-        /* 열↔직원 매핑 (불일치 열은 자동 무시) */
-        var colStaffMap={};
-        for(var c=0;c<headers.length;c++){
-            if(c===dateColIdx)continue;
-            var h=headers[c]; if(!h)continue;
+            if(c===dateCol)continue;
+            var h=headers[c]; if(!_isPasteName(h))continue;
+            var gIdx=colGrpMap[c]!==undefined?colGrpMap[c]:0;
             var m=_findBestStaffMatch(h);
-            if(m&&m.score>=40)colStaffMap[c]=m;
+            if(m&&m.score>=60){
+                colStaffMap[c]={gIdx:m.gIdx,staffId:m.staffId,name:m.name,isNew:false};
+            } else {
+                var sid=nextIdByGrp[gIdx]++;
+                colStaffMap[c]={gIdx:gIdx,staffId:sid,name:h,isNew:true};
+                newStaff.push({gKey:SCHED_GROUPS[gIdx].key,staffId:sid,name:h,gIdx:gIdx});
+            }
         }
-        var matchedCount=Object.keys(colStaffMap).length;
-        if(matchedCount===0){
+        if(Object.keys(colStaffMap).length===0){
             document.getElementById('schedImgPreviewBody').innerHTML=
-                '<div style="color:#ef4444;padding:20px;font-weight:700;">⚠️ 직원 이름을 인식하지 못했습니다.<br><span style="font-size:10px;font-weight:500;opacity:0.7;">헤더 행(직원 이름 행)과 날짜 열이 포함됐는지 확인하세요.<br>스케줄 모달에서 직원 이름을 먼저 등록해야 매핑됩니다.</span></div>';
+                '<div style="color:#ef4444;padding:20px;font-weight:700;">⚠️ 직원 이름(2~3글자 한글)을 인식하지 못했습니다.<br><span style="font-size:10px;opacity:0.7;">날짜 열과 직원 이름 헤더 행이 포함됐는지 확인하세요.</span></div>';
             return;
         }
+        /* 데이터 파싱 */
         var year=parseInt(document.getElementById('schedImgYear').value)||_schedYear;
         var month=parseInt(document.getElementById('schedImgMonth').value)||_schedMonth;
-        var updates={};
-        var statusCount=0;var clearCount=0;
+        var updates={};var statusCnt=0;var clearCnt=0;
         var KNOWN={'휴무':1,'연차':1,'반차':1,'안식':1,'9시':1,'12시':1,'15시':1,'17시':1};
-        for(var r=headerIdx+1;r<rows.length;r++){
+        for(var r=staffHdrIdx+1;r<rows.length;r++){
             var row=rows[r];
-            var day=parseInt(row[dateColIdx]||'');
+            var day=parseInt(row[dateCol]||'');
             if(isNaN(day)||day<1||day>31)continue;
             for(var c in colStaffMap){
                 var info=colStaffMap[c];
                 var cell=row[parseInt(c)]||'';
                 var fbKey='work_schedule/'+year+'/'+month+'/cells/'+info.gIdx+'_'+info.staffId+'_'+day;
                 var status=null;
-                if(cell){status=KNOWN[cell]?cell:'휴무';statusCount++;}
-                else{clearCount++;}
+                if(cell){status=KNOWN[cell]?cell:'휴무';statusCnt++;}else{clearCnt++;}
                 updates[fbKey]=status;
             }
         }
         /* 미리보기 */
-        var tags=Object.keys(colStaffMap).map(function(c){
-            var m=colStaffMap[c];var gc=_GCOL[m.gIdx]||'#888';
-            return '<span style="display:inline-block;padding:2px 9px;border-radius:12px;background:'+gc+'22;border:1px solid '+gc+'55;font-size:10.5px;font-weight:900;margin:2px;color:'+gc+'">'+SCHED_GROUPS[m.gIdx].label+' '+m.name+'</span>';
-        }).join('');
-        var html='<div style="margin-bottom:10px;padding:12px;border-radius:10px;background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.25);">';
-        html+='<div style="font-size:12px;font-weight:900;margin-bottom:8px;">✅ 직원 <b>'+matchedCount+'명</b> 인식 완료</div>'+tags+'</div>';
+        var existTags='',newTags='';
+        Object.keys(colStaffMap).forEach(function(c){
+            var info=colStaffMap[c];var gc=_GCOL[info.gIdx]||'#888';
+            var tag='<span style="display:inline-block;padding:2px 9px;border-radius:12px;background:'+gc+'22;border:1px solid '+gc+'55;font-size:10.5px;font-weight:900;margin:2px;color:'+gc+'">'+SCHED_GROUPS[info.gIdx].label+' '+info.name+(info.isNew?' 🆕':'')+'</span>';
+            if(info.isNew)newTags+=tag;else existTags+=tag;
+        });
+        var html='<div style="margin-bottom:10px;padding:12px;border-radius:10px;background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.25);font-size:11.5px;">';
+        html+='<b>기존 직원</b> (매핑)<br>'+(existTags||'<span style="opacity:0.4;font-size:10px;">없음</span>')+'<br>';
+        if(newTags)html+='<b style="margin-top:6px;display:block;">신규 직원 자동 추가 🆕</b>'+newTags+'<br>';
+        html+='</div>';
         html+='<div style="font-size:11.5px;padding:12px;border-radius:8px;background:var(--bg-body);line-height:2.1;">';
-        html+='📝 상태값 등록: <b>'+statusCount+'개</b> (휴무·연차 등)<br>';
-        html+='🗑 빈 칸 초기화: <b>'+clearCount+'개</b> (기존 값 삭제 → 정상출근)<br>';
+        html+='📝 상태값 등록: <b>'+statusCnt+'개</b><br>🗑 빈 칸 초기화: <b>'+clearCnt+'개</b><br>';
+        if(newStaff.length>0)html+='<span style="color:#f59e0b;font-weight:900;">⚠ 신규 직원 '+newStaff.length+'명이 스케줄에 추가됩니다</span><br>';
         html+='<span style="opacity:0.45;font-size:10px;">위 직원들의 '+year+'년 '+month+'월 전체 스케줄이 교체됩니다</span></div>';
         document.getElementById('schedImgPreviewBody').innerHTML=html;
-        _schedImportData={direct:true,updates:updates,year:year,month:month,statusCount:statusCount};
+        _schedImportData={direct:true,updates:updates,year:year,month:month,newStaff:newStaff};
     }
     var _SCHED_PARSE_SYS='직원 스케줄 표를 파싱하여 반드시 순수 JSON만 반환하세요. (마크다운·코드블록 절대 금지)\n형식: {"year":연도또는null,"month":월또는null,"entries":[{"name":"직원명","group":"9시","day":날짜숫자,"value":"상태값"}]}\n\n[표 유형별 파싱]\n◆ 유형A: 열=직원명, 행=날짜, 셀=상태어(휴무/연차/반차/안식 등)\n  → name=열헤더 직원명, day=행헤더 날짜, value=셀 상태어\n◆ 유형B: 행=날짜, 열=근무조(9시/12시/15시/17시/야간), 셀=근무자 이름들\n  → 이름 하나당 entry 생성: name=이름, group=열헤더 근무조, day=행헤더 날짜, value=열헤더 근무조명(예:"9시")\n◆ 유형C: 행=날짜, 셀에 이름만 나열 (근무조 구분 없음)\n  → 이름 하나당 entry: name=이름, day=행헤더 날짜, group="9시", value="휴무"\n\n[공통 규칙]\n- day: 숫자(1~31)만, 빈칸/정상출근 제외, 직원명 표에서 읽은 그대로\n- JSON 외 어떤 텍스트도 절대 출력 금지';
     var _schedLastRawResponse='';
@@ -2794,10 +2821,22 @@
         /* 직접 붙여넣기 모드 */
         if(_schedImportData&&_schedImportData.direct){
             var year=_schedImportData.year,month=_schedImportData.month;
-            if(!confirm(year+'년 '+month+'월 스케줄을 붙여넣은 내용으로 교체하시겠습니까?'))return;
-            db.ref().update(_schedImportData.updates,function(err){
+            var ns=_schedImportData.newStaff||[];
+            var confirmMsg=year+'년 '+month+'월 스케줄을 붙여넣은 내용으로 교체하시겠습니까?';
+            if(ns.length>0)confirmMsg+='\n\n신규 직원 '+ns.length+'명도 함께 등록됩니다:\n'+ns.map(function(s){return '- '+s.name+' ('+SCHED_GROUPS[s.gIdx].label+')';}).join('\n');
+            if(!confirm(confirmMsg))return;
+            var allUpdates=Object.assign({},_schedImportData.updates);
+            ns.forEach(function(s){
+                allUpdates['work_schedule/staff/'+s.gKey+'/'+s.staffId]=s.name;
+            });
+            var cachedNs=ns.slice();
+            db.ref().update(allUpdates,function(err){
                 if(err){alert('오류: '+err.message);return;}
-                alert('✅ 완료!');
+                cachedNs.forEach(function(s){
+                    if(!_schedNames[s.gKey])_schedNames[s.gKey]={};
+                    _schedNames[s.gKey][s.staffId]=s.name;
+                });
+                alert('✅ 완료!'+(cachedNs.length>0?' (신규 직원 '+cachedNs.length+'명 등록됨)':''));
                 closeSchedImgPreview();
                 if(year===_schedYear&&month===_schedMonth)_loadScheduleAll();
             });
