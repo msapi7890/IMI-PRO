@@ -2127,8 +2127,14 @@
         var scored=Object.entries(idx).map(function(e){
             var key=e[0].toLowerCase();
             var val=(typeof e[1]==='string'?e[1]:(e[1].text||e[1].content||'')).toLowerCase();
+            var keyNS=key.replace(/\s/g,'');
+            var valNS=val.replace(/\s/g,'');
             var sc=0;
-            qWords.forEach(function(w){if(key.includes(w))sc+=3;if(val.includes(w))sc+=1;});
+            qWords.forEach(function(w){
+                var wNS=w.replace(/\s/g,'');
+                if(key.includes(w)||keyNS.includes(wNS))sc+=3;
+                if(val.includes(w)||valNS.includes(wNS))sc+=1;
+            });
             return {k:e[0],v:(typeof e[1]==='string'?e[1]:(e[1].text||e[1].content||'')),s:sc};
         });
         scored.sort(function(a,b){return b.s-a.s;});
