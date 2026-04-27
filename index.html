@@ -379,6 +379,11 @@
                 <button onclick="closeMemoPopup()" style="padding:5px 8px;border-radius:6px;font-size:10px;font-weight:900;border:1.5px solid var(--border-ui);background:none;color:var(--text-sub);cursor:pointer;">취소</button>
             </div>
         </div>
+        <!-- 그룹 토글 바 -->
+        <div style="display:flex;align-items:center;gap:8px;padding:5px 18px;border-bottom:1px solid var(--border-ui);flex-shrink:0;">
+            <span style="font-size:10px;font-weight:700;opacity:0.4;white-space:nowrap;">표시 그룹:</span>
+            <div id="schedGroupBtns" style="display:flex;gap:5px;flex-wrap:wrap;"></div>
+        </div>
         <!-- 테이블 영역 -->
         <div style="flex:1;overflow:hidden;min-height:0;padding:12px 14px;">
             <div id="scheduleTableWrap" style="width:100%;height:100%;"></div>
@@ -703,10 +708,50 @@
 
     /* ── 직원 스케쥴 ── */
     var SCHED_GROUPS = [
-        { label:'09시', key:'g0' },
+        { label:'9시',  key:'g0' },
         { label:'15시', key:'g1' },
-        { label:'야간', key:'g2' }
+        { label:'야간', key:'g2' },
+        { label:'12시', key:'g3' },
+        { label:'17시', key:'g4' }
     ];
+    /* gIdx 기준 표시 순서: 9시(0) 12시(3) 15시(1) 17시(4) 야간(2) */
+    var SCHED_DISPLAY_ORDER = [0,3,1,4,2];
+    var _schedActiveGroups = null;
+    function _getActiveGroups(){
+        if(_schedActiveGroups===null){
+            try{var s=JSON.parse(localStorage.getItem('imi_sched_active_v2'));_schedActiveGroups=Array.isArray(s)?s:SCHED_GROUPS.map(function(g){return g.key;});}
+            catch(e){_schedActiveGroups=SCHED_GROUPS.map(function(g){return g.key;});}
+        }
+        return _schedActiveGroups;
+    }
+    function _toggleSchedGroup(key){
+        var active=_getActiveGroups().slice();
+        var idx=active.indexOf(key);
+        if(idx>=0){active.splice(idx,1);}else{
+            active=SCHED_DISPLAY_ORDER.map(function(gi){return SCHED_GROUPS[gi].key;}).filter(function(k){return active.indexOf(k)>=0||k===key;});
+        }
+        _schedActiveGroups=active;
+        localStorage.setItem('imi_sched_active_v2',JSON.stringify(active));
+        _renderGroupBtns();
+        _buildSchedColMap();
+        _renderScheduleTable();
+    }
+    function _renderGroupBtns(){
+        var bar=document.getElementById('schedGroupBtns'); if(!bar)return;
+        var active=_getActiveGroups();
+        var colors={'g0':'#eab308','g3':'#3b82f6','g1':'#ec4899','g4':'#22c55e','g2':'#8b5cf6'};
+        bar.innerHTML='';
+        SCHED_DISPLAY_ORDER.forEach(function(gi){
+            var g=SCHED_GROUPS[gi];
+            var on=active.indexOf(g.key)>=0;
+            var c=colors[g.key]||'var(--active-focus-color)';
+            var btn=document.createElement('button');
+            btn.textContent=g.label;
+            btn.style.cssText='padding:2px 10px;border-radius:6px;font-size:10px;font-weight:900;cursor:pointer;transition:all 0.15s;border:1.5px solid '+(on?c:'var(--border-ui)')+';background:'+(on?c+'22':'none')+';color:'+(on?c:'var(--text-sub)')+';';
+            btn.onclick=function(){_toggleSchedGroup(g.key);};
+            bar.appendChild(btn);
+        });
+    }
     var _schedYear = 2026, _schedMonth = 4;
     var _schedStamp = '휴무';
     var _schedCells = {}, _schedNames = {};
@@ -731,7 +776,10 @@
     }
     function _buildSchedColMap(){
         _schedColMap = [];
-        SCHED_GROUPS.forEach(function(g,gIdx){
+        var active=_getActiveGroups();
+        SCHED_DISPLAY_ORDER.forEach(function(gIdx){
+            var g=SCHED_GROUPS[gIdx];
+            if(active.indexOf(g.key)<0)return;
             var ids=Object.keys(_schedNames[g.key]||{}).map(Number).sort(function(a,b){return a-b;});
             ids.forEach(function(sid){ _schedColMap.push({gIdx:gIdx,staffId:sid}); });
         });
@@ -877,6 +925,7 @@
                     var md = snap2.val() || {};
                     _schedCells = md.cells || {};
                     _schedMemos = md.memos || {};
+                    _renderGroupBtns();
                     _renderScheduleTable();
                 });
             });
@@ -2530,7 +2579,7 @@
         if(!CLAUDE_API_KEY){alert('⚠️ Claude API 키를 먼저 설정해주세요.');return;}
         document.getElementById('schedImgInput').click();
     }
-    var _SCHED_PARSE_SYS='직원 스케줄 표 데이터를 파싱하여 반드시 JSON만 반환하세요.\n형식: {"year":연도또는null,"month":월또는null,"entries":[{"name":"직원명","group":"그룹명(09시/15시/야간)","day":날짜숫자,"value":"상태값"}]}\n상태값은 "휴무","9시","12시","15시","17시","연차","반차","안식" 중 하나. 정상출근/빈칸은 entries에서 생략하세요.\nJSON 외 다른 텍스트는 절대 출력하지 마세요.';
+    var _SCHED_PARSE_SYS='직원 스케줄 표 데이터를 파싱하여 반드시 JSON만 반환하세요.\n형식: {"year":연도또는null,"month":월또는null,"entries":[{"name":"직원명","group":"그룹명(9시/12시/15시/17시/야간)","day":날짜숫자,"value":"상태값"}]}\n상태값은 "휴무","9시","12시","15시","17시","연차","반차","안식" 중 하나. 정상출근/빈칸은 entries에서 생략하세요.\nJSON 외 다른 텍스트는 절대 출력하지 마세요.';
     async function _parseSchedResponse(res){
         var data=await res.json();
         var txt=(data.content[0].text||'').trim();
