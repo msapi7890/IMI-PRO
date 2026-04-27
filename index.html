@@ -2586,35 +2586,85 @@
         document.getElementById('schedImgInput').click();
     }
     function openSchedTextPaste(){
-        if(!CLAUDE_API_KEY){alert('⚠️ Claude API 키를 먼저 설정해주세요.');return;}
-        document.getElementById('schedImgModalTitle').textContent='📋 엑셀 붙여넣기 파싱';
+        document.getElementById('schedImgModalTitle').textContent='📋 엑셀 붙여넣기 등록';
         document.getElementById('schedImgYear').value=_schedYear;
         document.getElementById('schedImgMonth').value=_schedMonth;
         document.getElementById('schedImgPreviewModal').classList.remove('hidden');
         document.getElementById('schedImgPreviewBody').innerHTML=
-            '<div style="font-size:11px;margin-bottom:10px;padding:10px;background:rgba(59,130,246,0.08);border-radius:8px;border:1px solid rgba(59,130,246,0.2);line-height:1.7;">'+
-            '📌 <b>복사 범위에 날짜 열(1,2,3…)과 헤더 행을 반드시 포함하세요.</b><br>'+
-            '<span style="opacity:0.6;">예) A1부터 날짜·직원명·상태값이 있는 마지막 셀까지 선택 후 <b>Ctrl+C</b></span></div>'+
-            '<textarea id="schedPasteArea" placeholder="여기에 붙여넣기 (Ctrl+V)..." style="width:100%;height:200px;padding:10px;border-radius:9px;border:1.5px solid var(--border-ui);background:var(--bg-chat);color:var(--text-main);font-size:11px;font-family:monospace;resize:vertical;box-sizing:border-box;"></textarea>'+
-            '<button onclick="analyzeSchedPasteText()" style="margin-top:10px;width:100%;padding:10px;border-radius:9px;background:var(--active-focus-color);color:#fff;border:none;font-size:13px;font-weight:900;cursor:pointer;">🔍 분석하기</button>';
+            '<div style="font-size:11px;margin-bottom:10px;padding:10px;background:rgba(59,130,246,0.08);border-radius:8px;border:1px solid rgba(59,130,246,0.2);line-height:1.8;">'+
+            '📌 <b>날짜 열 + 직원 이름 헤더 행을 포함하여</b> 복사(<b>Ctrl+C</b>)하세요.<br>'+
+            '<span style="opacity:0.6;">· 색상은 무시되고 텍스트만 사용됩니다<br>· 휴무가능/실휴무인원 등 불필요한 열은 자동 무시됩니다</span></div>'+
+            '<textarea id="schedPasteArea" placeholder="여기에 붙여넣기 (Ctrl+V)..." style="width:100%;height:180px;padding:10px;border-radius:9px;border:1.5px solid var(--border-ui);background:var(--bg-chat);color:var(--text-main);font-size:11px;font-family:monospace;resize:vertical;box-sizing:border-box;"></textarea>'+
+            '<button onclick="analyzeSchedPasteText()" style="margin-top:10px;width:100%;padding:10px;border-radius:9px;background:var(--active-focus-color);color:#fff;border:none;font-size:13px;font-weight:900;cursor:pointer;">🔍 적용 미리보기</button>';
         setTimeout(function(){var ta=document.getElementById('schedPasteArea');if(ta)ta.focus();},100);
     }
-    async function analyzeSchedPasteText(){
+    function analyzeSchedPasteText(){
         var ta=document.getElementById('schedPasteArea');
         if(!ta)return;
         var text=ta.value.trim();
         if(!text){alert('내용을 붙여넣어 주세요.');return;}
-        document.getElementById('schedImgPreviewBody').innerHTML='<div style="text-align:center;padding:40px;opacity:0.5;font-size:13px;font-weight:700;">📊 분석 중...</div>';
-        try{
-            var res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':CLAUDE_API_KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:2000,system:_SCHED_PARSE_SYS,messages:[{role:'user',content:'아래 스케줄 데이터를 파싱해주세요:\n\n'+text}]})});
-            var parsed=await _parseSchedResponse(res);
-            if(parsed.year)document.getElementById('schedImgYear').value=parsed.year;
-            if(parsed.month)document.getElementById('schedImgMonth').value=parsed.month;
-            _schedImportData=parsed;
-            _renderSchedImgPreview(parsed);
-        }catch(err){
-            document.getElementById('schedImgPreviewBody').innerHTML='<div style="color:#ef4444;padding:20px;font-weight:700;">⚠️ 파싱 오류: '+escHtml(err.message)+'</div>';
+        /* TSV 파싱 (엑셀 복사본 = 탭 구분) */
+        var rows=text.split('\n').map(function(r){return r.split('\t').map(function(c){return c.trim();});});
+        /* 헤더 행 탐색: 다음 행의 첫 셀이 날짜 숫자(1~31)이면 현재 행이 헤더 */
+        var headerIdx=0;
+        for(var i=0;i<Math.min(rows.length-1,6);i++){
+            var nf=(rows[i+1]&&rows[i+1][0])||'';
+            var nd=parseInt(nf);
+            if(nd>=1&&nd<=31){headerIdx=i;break;}
         }
+        var headers=rows[headerIdx];
+        /* 날짜 열 탐색 */
+        var dateColIdx=0;
+        for(var c=0;c<headers.length;c++){
+            var h=headers[c];
+            if(h==='날짜'||h==='일'||h==='날'){dateColIdx=c;break;}
+        }
+        /* 열↔직원 매핑 (불일치 열은 자동 무시) */
+        var colStaffMap={};
+        for(var c=0;c<headers.length;c++){
+            if(c===dateColIdx)continue;
+            var h=headers[c]; if(!h)continue;
+            var m=_findBestStaffMatch(h);
+            if(m&&m.score>=40)colStaffMap[c]=m;
+        }
+        var matchedCount=Object.keys(colStaffMap).length;
+        if(matchedCount===0){
+            document.getElementById('schedImgPreviewBody').innerHTML=
+                '<div style="color:#ef4444;padding:20px;font-weight:700;">⚠️ 직원 이름을 인식하지 못했습니다.<br><span style="font-size:10px;font-weight:500;opacity:0.7;">헤더 행(직원 이름 행)과 날짜 열이 포함됐는지 확인하세요.<br>스케줄 모달에서 직원 이름을 먼저 등록해야 매핑됩니다.</span></div>';
+            return;
+        }
+        var year=parseInt(document.getElementById('schedImgYear').value)||_schedYear;
+        var month=parseInt(document.getElementById('schedImgMonth').value)||_schedMonth;
+        var updates={};
+        var statusCount=0;var clearCount=0;
+        var KNOWN={'휴무':1,'연차':1,'반차':1,'안식':1,'9시':1,'12시':1,'15시':1,'17시':1};
+        for(var r=headerIdx+1;r<rows.length;r++){
+            var row=rows[r];
+            var day=parseInt(row[dateColIdx]||'');
+            if(isNaN(day)||day<1||day>31)continue;
+            for(var c in colStaffMap){
+                var info=colStaffMap[c];
+                var cell=row[parseInt(c)]||'';
+                var fbKey='work_schedule/'+year+'/'+month+'/cells/'+info.gIdx+'_'+info.staffId+'_'+day;
+                var status=null;
+                if(cell){status=KNOWN[cell]?cell:'휴무';statusCount++;}
+                else{clearCount++;}
+                updates[fbKey]=status;
+            }
+        }
+        /* 미리보기 */
+        var tags=Object.keys(colStaffMap).map(function(c){
+            var m=colStaffMap[c];var gc=_GCOL[m.gIdx]||'#888';
+            return '<span style="display:inline-block;padding:2px 9px;border-radius:12px;background:'+gc+'22;border:1px solid '+gc+'55;font-size:10.5px;font-weight:900;margin:2px;color:'+gc+'">'+SCHED_GROUPS[m.gIdx].label+' '+m.name+'</span>';
+        }).join('');
+        var html='<div style="margin-bottom:10px;padding:12px;border-radius:10px;background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.25);">';
+        html+='<div style="font-size:12px;font-weight:900;margin-bottom:8px;">✅ 직원 <b>'+matchedCount+'명</b> 인식 완료</div>'+tags+'</div>';
+        html+='<div style="font-size:11.5px;padding:12px;border-radius:8px;background:var(--bg-body);line-height:2.1;">';
+        html+='📝 상태값 등록: <b>'+statusCount+'개</b> (휴무·연차 등)<br>';
+        html+='🗑 빈 칸 초기화: <b>'+clearCount+'개</b> (기존 값 삭제 → 정상출근)<br>';
+        html+='<span style="opacity:0.45;font-size:10px;">위 직원들의 '+year+'년 '+month+'월 전체 스케줄이 교체됩니다</span></div>';
+        document.getElementById('schedImgPreviewBody').innerHTML=html;
+        _schedImportData={direct:true,updates:updates,year:year,month:month,statusCount:statusCount};
     }
     var _SCHED_PARSE_SYS='직원 스케줄 표를 파싱하여 반드시 순수 JSON만 반환하세요. (마크다운·코드블록 절대 금지)\n형식: {"year":연도또는null,"month":월또는null,"entries":[{"name":"직원명","group":"9시","day":날짜숫자,"value":"상태값"}]}\n\n[표 유형별 파싱]\n◆ 유형A: 열=직원명, 행=날짜, 셀=상태어(휴무/연차/반차/안식 등)\n  → name=열헤더 직원명, day=행헤더 날짜, value=셀 상태어\n◆ 유형B: 행=날짜, 열=근무조(9시/12시/15시/17시/야간), 셀=근무자 이름들\n  → 이름 하나당 entry 생성: name=이름, group=열헤더 근무조, day=행헤더 날짜, value=열헤더 근무조명(예:"9시")\n◆ 유형C: 행=날짜, 셀에 이름만 나열 (근무조 구분 없음)\n  → 이름 하나당 entry: name=이름, day=행헤더 날짜, group="9시", value="휴무"\n\n[공통 규칙]\n- day: 숫자(1~31)만, 빈칸/정상출근 제외, 직원명 표에서 읽은 그대로\n- JSON 외 어떤 텍스트도 절대 출력 금지';
     var _schedLastRawResponse='';
@@ -2741,6 +2791,19 @@
         });
     }
     function confirmSchedImport(){
+        /* 직접 붙여넣기 모드 */
+        if(_schedImportData&&_schedImportData.direct){
+            var year=_schedImportData.year,month=_schedImportData.month;
+            if(!confirm(year+'년 '+month+'월 스케줄을 붙여넣은 내용으로 교체하시겠습니까?'))return;
+            db.ref().update(_schedImportData.updates,function(err){
+                if(err){alert('오류: '+err.message);return;}
+                alert('✅ 완료!');
+                closeSchedImgPreview();
+                if(year===_schedYear&&month===_schedMonth)_loadScheduleAll();
+            });
+            return;
+        }
+        /* 이미지/엑셀 파일 파싱 모드 */
         var year=parseInt(document.getElementById('schedImgYear').value)||_schedYear;
         var month=parseInt(document.getElementById('schedImgMonth').value)||_schedMonth;
         var entries=(_schedImportData&&_schedImportData.entries)||[];
