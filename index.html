@@ -764,7 +764,7 @@
     var _schedSelStartCol = null, _schedSelStartDay = null;
     var _schedSelEndCol = null, _schedSelEndDay = null;
     var _schedColMap = [];
-    var _GCOL = ['#f59e0b','#3b82f6','#8b5cf6'];
+    var _GCOL = ['#eab308','#ec4899','#8b5cf6','#3b82f6','#22c55e'];
     var _SCHED_COL_PALETTE = ['#ef4444','#f97316','#eab308','#22c55e','#14b8a6','#3b82f6','#6366f1','#8b5cf6','#ec4899','#f59e0b','#78716c','#94a3b8'];
     function _schedKeyDown(e){
         if(e.key==='Escape'){
@@ -1133,10 +1133,9 @@
         var days = new Date(_schedYear, _schedMonth, 0).getDate();
         var DN = ['일','월','화','수','목','금','토'];
         var cs = 'border:1px solid var(--border-ui);overflow:hidden;';
-        var gStaff = SCHED_GROUPS.map(function(g){
-            var obj=_schedNames[g.key]||{};
-            return Object.keys(obj).map(Number).sort(function(a,b){return a-b;});
-        });
+        var active=_getActiveGroups();
+        var _activeDispGroups=SCHED_DISPLAY_ORDER.filter(function(gi){return active.indexOf(SCHED_GROUPS[gi].key)>=0;}).map(function(gi){return{g:SCHED_GROUPS[gi],gIdx:gi};});
+        var gStaff=_activeDispGroups.map(function(item){var obj=_schedNames[item.g.key]||{};return Object.keys(obj).map(Number).sort(function(a,b){return a-b;});});
 
         /* ── 컬럼 폭: 퍼센트 기반, 스크롤 없이 꽉 맞춤 ── */
         var totalStaffCols = gStaff.reduce(function(acc,ids){ return acc+Math.max(1,ids.length); },0);
@@ -1174,10 +1173,11 @@
         /* 헤더 1행: 날짜(rowspan=2) + 그룹 레이블 */
         html+='<thead><tr>';
         html+='<th rowspan="2" style="'+cs+'width:'+DWpct+';text-align:center;font-size:'+dFont+';font-weight:900;background:var(--bg-body);vertical-align:middle;height:32px;white-space:nowrap;padding:2px 0;">날짜</th>';
-        SCHED_GROUPS.forEach(function(g,gIdx){
-            var ids=gStaff[gIdx];
+        _activeDispGroups.forEach(function(item,di){
+            var g=item.g; var gIdx=item.gIdx;
+            var ids=gStaff[di];
             var span=Math.max(1,ids.length);
-            var lb=gIdx>0?'border-left:4px solid '+_colRgba(_GCOL[gIdx],0.65)+';':'';
+            var lb=di>0?'border-left:4px solid '+_colRgba(_GCOL[gIdx],0.65)+';':'';
             var gc=_GCOL[gIdx];
             html+='<th colspan="'+span+'" style="'+cs+lb+'text-align:center;font-size:9.5px;font-weight:900;color:'+gc+';background:var(--bg-body);padding:2px 3px;height:32px;vertical-align:middle;white-space:nowrap;">';
             html+=g.label;
@@ -1187,9 +1187,10 @@
 
         /* 헤더 2행: 이름 입력 */
         html+='<tr>';
-        SCHED_GROUPS.forEach(function(g,gIdx){
-            var ids=gStaff[gIdx];
-            var lb=gIdx>0?'border-left:4px solid '+_colRgba(_GCOL[gIdx],0.65)+';':'';
+        _activeDispGroups.forEach(function(item,di){
+            var g=item.g; var gIdx=item.gIdx;
+            var ids=gStaff[di];
+            var lb=di>0?'border-left:4px solid '+_colRgba(_GCOL[gIdx],0.65)+';':'';
             if(ids.length===0){
                 html+='<td style="'+cs+lb+'width:'+SWpct+';text-align:center;font-size:7.5px;opacity:0.3;background:var(--bg-body);height:'+nameH+'px;vertical-align:middle;">없음</td>';
             } else {
@@ -1221,9 +1222,10 @@
                 : (d+'<br><span style="font-size:'+Math.max(7,parseInt(dFont)-1)+'px;opacity:0.85;">'+DN[dow]+'</span>');
             html+='<tr>';
             html+='<td style="'+cs+'width:'+DWpct+';height:'+rowH+'px;text-align:center;padding:0;background:'+dbg+';color:'+dc+';font-weight:900;font-size:'+dFont+';line-height:1.1;vertical-align:middle;white-space:nowrap;'+(isToday?'border-left:4px solid #f59e0b;box-shadow:inset 2px 0 8px rgba(245,158,11,0.18);':'')+(isSun&&!isToday?'border-left:3px solid rgba(239,68,68,0.5);':'')+(isSat&&!isToday?'border-left:3px solid rgba(96,165,250,0.5);':'')+'">'+(isToday?'<b>'+dateInner+'</b>':dateInner)+'</td>';
-            SCHED_GROUPS.forEach(function(g,gIdx){
-                var ids=gStaff[gIdx];
-                var lb=gIdx>0?'border-left:4px solid '+_colRgba(_GCOL[gIdx],0.65)+';':'';
+            _activeDispGroups.forEach(function(item,di){
+                var g=item.g; var gIdx=item.gIdx;
+                var ids=gStaff[di];
+                var lb=di>0?'border-left:4px solid '+_colRgba(_GCOL[gIdx],0.65)+';':'';
                 if(ids.length===0){
                     html+='<td style="'+cs+lb+'width:'+SWpct+';height:'+rowH+'px;background:var(--bg-body);"></td>';
                 } else {
@@ -1261,9 +1263,10 @@
         if(_schedEditMode){
             /* 편집 모드: 열 삭제 + 열 추가 */
             html+='<td style="'+cs+'width:'+DWpct+';height:'+footH+'px;background:var(--bg-body);padding:0;"></td>';
-            SCHED_GROUPS.forEach(function(g,gIdx){
-                var ids=gStaff[gIdx];
-                var lb=gIdx>0?'border-left:4px solid '+_colRgba(_GCOL[gIdx],0.65)+';':'';
+            _activeDispGroups.forEach(function(item,di){
+                var g=item.g; var gIdx=item.gIdx;
+                var ids=gStaff[di];
+                var lb=di>0?'border-left:4px solid '+_colRgba(_GCOL[gIdx],0.65)+';':'';
                 var gc=_GCOL[gIdx];
                 if(ids.length===0){
                     html+='<td style="'+cs+lb+'width:'+SWpct+';height:'+footH+'px;text-align:center;vertical-align:middle;background:var(--bg-body);padding:1px;">';
@@ -1289,9 +1292,10 @@
         } else {
             /* 뷰 모드: 휴무+연차+반차(×0.5) 합산 집계 */
             html+='<td style="'+cs+'width:'+DWpct+';height:'+footH+'px;background:rgba(239,68,68,0.10);text-align:center;font-size:9px;font-weight:900;color:#ef4444;vertical-align:middle;white-space:nowrap;padding:0;line-height:1;">휴무일</td>';
-            SCHED_GROUPS.forEach(function(g,gIdx){
-                var ids=gStaff[gIdx];
-                var lb=gIdx>0?'border-left:4px solid '+_colRgba(_GCOL[gIdx],0.65)+';':'';
+            _activeDispGroups.forEach(function(item,di){
+                var g=item.g; var gIdx=item.gIdx;
+                var ids=gStaff[di];
+                var lb=di>0?'border-left:4px solid '+_colRgba(_GCOL[gIdx],0.65)+';':'';
                 if(ids.length===0){
                     html+='<td style="'+cs+lb+'width:'+SWpct+';height:'+footH+'px;background:var(--bg-body);"></td>';
                 } else {
