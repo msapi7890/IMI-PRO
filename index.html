@@ -2759,10 +2759,10 @@
                 var status;
                 if(KNOWN[cell]){
                     status=cell;           /* 연차/안식/반차/휴무 → 그대로 */
-                } else if(_isPasteName(cell)){
-                    status=null;           /* 이름 있음 = 정상근무 */
+                } else if(cell){
+                    status='휴무';         /* 이름 또는 기타 텍스트 있음 = 휴무 */
                 } else {
-                    status='휴무';         /* 빈칸 또는 기타 텍스트 → 휴무 */
+                    status=null;           /* 빈칸 = 정상근무 */
                 }
                 if(status!==null)statusCnt++;else clearCnt++;
                 updates[fbKey]=status;
