@@ -589,7 +589,7 @@
     var db = firebase.database();
     var storage = firebase.storage();
     var ADMIN_PW = "mania3001!";
-    var CLAUDE_API_KEY = localStorage.getItem("claude_api_key") || "";
+    var CLAUDE_API_KEY = "";
 
     var currentMode = 'mania', chatHistories = {mania:"",bay:""};
     var allNotices = {mania:{},bay:{}}, manualData = {mania:{text:"",files:[]},bay:{text:"",files:[]}};
@@ -612,22 +612,25 @@
 
     function checkAppStatus(){
         if(!CLAUDE_API_KEY){
-            var key = prompt("Claude API \uD0A4 \uC785\uB825 (sk-ant-...):");
-            if(key && key.startsWith('sk-ant-')){
-                CLAUDE_API_KEY = key.trim();
-                localStorage.setItem('claude_api_key', CLAUDE_API_KEY);
-                updateStatusBadge();
-                alert("\u2705 API \uD0A4 \uC800\uC7A5 \uC644\uB8CC!");
-            } else if(key) {
-                alert("\u274C \uC62C\uBC14\uB974\uC9C0 \uC54A\uC740 \uD615\uC2DD\uC785\uB2C8\uB2E4.");
-            }
+            var pw=prompt("관리자 비밀번호를 입력하세요:");
+            if(pw!==ADMIN_PW){if(pw)alert("❌ 비밀번호가 틀렸습니다.");return;}
+            var key=prompt("Claude API 키 입력 (sk-ant-...):");
+            if(key&&key.startsWith('sk-ant-')){
+                db.ref('config/claude_api_key').set(key.trim());
+                alert("✅ API 키 저장 완료! 전체 실무자에게 자동 적용됩니다.");
+            } else if(key){alert("❌ 올바르지 않은 형식입니다.");}
         } else {
-            if(confirm("IMI PRO v49.0\n\uBAA8\uB4DC: "+currentMode.toUpperCase()+"\nAPI\uD0A4: "+CLAUDE_API_KEY.substring(0,12)+"...\n\n[\uD655\uC778] \uD0A4 \uBCC0\uACBD  [\uCDE8\uC18C] \uB2EB\uAE30")){
-                localStorage.removeItem('claude_api_key');
-                CLAUDE_API_KEY = "";
-                updateStatusBadge();
-                checkAppStatus();
+            if(confirm("IMI PRO v49.0\n모드: "+currentMode.toUpperCase()+"\nAPI키: "+CLAUDE_API_KEY.substring(0,12)+"...\n\n[확인] 키 변경  [취소] 닫기")){
+                var pw=prompt("관리자 비밀번호를 입력하세요:");
+                if(pw!==ADMIN_PW){alert("❌ 비밀번호가 틀렸습니다.");return;}
+                var key=prompt("새 Claude API 키 입력 (sk-ant-...):");
+                if(key&&key.startsWith('sk-ant-')){
+                    db.ref('config/claude_api_key').set(key.trim());
+                    alert("✅ API 키 변경 완료! 전체 실무자에게 자동 적용됩니다.");
+                } else if(key){alert("❌ 올바르지 않은 형식입니다.");}
             }
+        }
+    }
         }
     }
 
@@ -2904,11 +2907,19 @@
         switchMode('mania'); updateFontSize(16); loadMemos(); switchChatTab(1);
         if(localStorage.getItem('tickerCollapsed')==='1') toggleTicker();
         window.addEventListener('resize', function(){ updateFontSize(parseInt(document.getElementById('fontSlider').value)); });
-        if(!CLAUDE_API_KEY){
-            setTimeout(function(){
-                addMsg("\uD83D\uDC4B \uC548\uB155\uD558\uC138\uC694! IMI PRO v49.0\uC785\uB2C8\uB2E4.<br><br><strong>\uC0C1\uB2E8 \uBC30\uC9C0\uB97C \uD074\uB9AD</strong>\uD558\uC5EC Claude API \uD0A4\uB97C \uC785\uB825\uD574\uC8FC\uC138\uC694.",'bot');
-            },300);
-        }
+        var _apiKeyFirstLoad = true;
+        db.ref('config/claude_api_key').on('value', function(snap){
+            CLAUDE_API_KEY = snap.val() || '';
+            updateStatusBadge();
+            if(_apiKeyFirstLoad){
+                _apiKeyFirstLoad = false;
+                if(!CLAUDE_API_KEY){
+                    setTimeout(function(){
+                        addMsg('👋 안녕하세요! IMI PRO v49.0입니다.<br><br><strong>상단 배지를 클릭</strong>하여 Claude API 키를 입력해주세요.','bot');
+                    },300);
+                }
+            }
+        });
     };
 
     db.ref('notices_mania').on('value',function(s){
