@@ -2592,8 +2592,10 @@
         document.getElementById('schedImgMonth').value=_schedMonth;
         document.getElementById('schedImgPreviewModal').classList.remove('hidden');
         document.getElementById('schedImgPreviewBody').innerHTML=
-            '<div style="font-size:11px;opacity:0.55;margin-bottom:8px;">엑셀에서 시간표 범위를 선택 복사(<b>Ctrl+C</b>) 후 아래에 붙여넣기(<b>Ctrl+V</b>)하세요.</div>'+
-            '<textarea id="schedPasteArea" placeholder="여기에 붙여넣기..." style="width:100%;height:200px;padding:10px;border-radius:9px;border:1.5px solid var(--border-ui);background:var(--bg-chat);color:var(--text-main);font-size:11px;font-family:monospace;resize:vertical;box-sizing:border-box;"></textarea>'+
+            '<div style="font-size:11px;margin-bottom:10px;padding:10px;background:rgba(59,130,246,0.08);border-radius:8px;border:1px solid rgba(59,130,246,0.2);line-height:1.7;">'+
+            '📌 <b>복사 범위에 날짜 열(1,2,3…)과 헤더 행을 반드시 포함하세요.</b><br>'+
+            '<span style="opacity:0.6;">예) A1부터 날짜·직원명·상태값이 있는 마지막 셀까지 선택 후 <b>Ctrl+C</b></span></div>'+
+            '<textarea id="schedPasteArea" placeholder="여기에 붙여넣기 (Ctrl+V)..." style="width:100%;height:200px;padding:10px;border-radius:9px;border:1.5px solid var(--border-ui);background:var(--bg-chat);color:var(--text-main);font-size:11px;font-family:monospace;resize:vertical;box-sizing:border-box;"></textarea>'+
             '<button onclick="analyzeSchedPasteText()" style="margin-top:10px;width:100%;padding:10px;border-radius:9px;background:var(--active-focus-color);color:#fff;border:none;font-size:13px;font-weight:900;cursor:pointer;">🔍 분석하기</button>';
         setTimeout(function(){var ta=document.getElementById('schedPasteArea');if(ta)ta.focus();},100);
     }
@@ -2614,7 +2616,7 @@
             document.getElementById('schedImgPreviewBody').innerHTML='<div style="color:#ef4444;padding:20px;font-weight:700;">⚠️ 파싱 오류: '+escHtml(err.message)+'</div>';
         }
     }
-    var _SCHED_PARSE_SYS='직원 스케줄 표를 파싱하여 반드시 순수 JSON만 반환하세요 (마크다운·코드블록·설명 텍스트 절대 금지).\n형식: {"year":연도또는null,"month":월또는null,"entries":[{"name":"직원명","group":"9시","day":날짜숫자,"value":"상태값"}]}\n\n[파싱 규칙]\n- 상태값: "휴무","연차","반차","안식","9시","12시","15시","17시" 중 하나\n- 정상출근·공백·빈칸은 entries에 포함하지 말 것\n- group: 표에 명시된 근무조(9시/12시/15시/17시/야간) 사용. 불명확하면 "9시"\n- day: 날짜 숫자만 (1~31). 날짜 헤더가 열이면 행으로, 행이면 열로 인식\n- 직원명: 표에서 읽은 한글 이름 그대로 기재\n- 값이 하나도 없으면 entries는 빈 배열 []\n- JSON 외 텍스트 절대 출력 금지';
+    var _SCHED_PARSE_SYS='직원 스케줄 표를 파싱하여 반드시 순수 JSON만 반환하세요. (마크다운·코드블록 절대 금지)\n형식: {"year":연도또는null,"month":월또는null,"entries":[{"name":"직원명","group":"9시","day":날짜숫자,"value":"상태값"}]}\n\n[표 유형별 파싱]\n◆ 유형A: 열=직원명, 행=날짜, 셀=상태어(휴무/연차/반차/안식 등)\n  → name=열헤더 직원명, day=행헤더 날짜, value=셀 상태어\n◆ 유형B: 행=날짜, 열=근무조(9시/12시/15시/17시/야간), 셀=근무자 이름들\n  → 이름 하나당 entry 생성: name=이름, group=열헤더 근무조, day=행헤더 날짜, value=열헤더 근무조명(예:"9시")\n◆ 유형C: 행=날짜, 셀에 이름만 나열 (근무조 구분 없음)\n  → 이름 하나당 entry: name=이름, day=행헤더 날짜, group="9시", value="휴무"\n\n[공통 규칙]\n- day: 숫자(1~31)만, 빈칸/정상출근 제외, 직원명 표에서 읽은 그대로\n- JSON 외 어떤 텍스트도 절대 출력 금지';
     var _schedLastRawResponse='';
     async function _parseSchedResponse(res){
         var data=await res.json();
