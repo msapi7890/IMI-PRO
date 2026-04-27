@@ -685,6 +685,7 @@
     var _schedDragging = false;
     var _schedEditMode = false;
     var _schedMemos = {}, _schedMemoActiveKey = null;
+    var _schedCellRef = null, _schedCellListener = null;
     var _schedColors = {}, _schedColorPickerTarget = null;
     var _schedSelecting = false;
     var _schedSelStartCol = null, _schedSelStartDay = null;
@@ -789,6 +790,7 @@
         document.addEventListener('keydown', _schedKeyDown);
     }
     function closeScheduleModal(){
+        _detachSchedCellListener();
         document.getElementById('scheduleModal').classList.add('hidden');
         closeMemoPopup();
         closeColorPicker();
@@ -815,7 +817,15 @@
             }
         });
     }
+    function _detachSchedCellListener(){
+        if(_schedCellRef && _schedCellListener){
+            _schedCellRef.off('value', _schedCellListener);
+            _schedCellRef = null;
+            _schedCellListener = null;
+        }
+    }
     function _loadScheduleAll(){
+        _detachSchedCellListener();
         document.getElementById('scheduleTitle').textContent = _schedYear+'년 '+_schedMonth+'월 스케쥴';
         document.getElementById('scheduleTableWrap').innerHTML = '<div style="padding:30px;text-align:center;opacity:0.4;font-size:13px;">불러오는 중...</div>';
         db.ref('work_schedule/staff').once('value', function(snap){
@@ -825,7 +835,6 @@
                 var raw = rawNames[g.key];
                 if(!raw || typeof raw!=='object'){ _schedNames[g.key]={}; }
                 else if(Array.isArray(raw)){
-                    /* 구버전 배열 → 오브젝트 변환 */
                     var obj={}; raw.forEach(function(n,i){ if(n!=null) obj[i]=n; });
                     _schedNames[g.key]=obj;
                     db.ref('work_schedule/staff/'+g.key).set(obj);
@@ -835,7 +844,8 @@
                 var rawC = snapC.val() || {};
                 _schedColors = {};
                 SCHED_GROUPS.forEach(function(g){ _schedColors[g.key]=(rawC[g.key]&&typeof rawC[g.key]==='object')?rawC[g.key]:{}; });
-                db.ref('work_schedule/'+_schedYear+'/'+_schedMonth).once('value', function(snap2){
+                _schedCellRef = db.ref('work_schedule/'+_schedYear+'/'+_schedMonth);
+                _schedCellListener = _schedCellRef.on('value', function(snap2){
                     var md = snap2.val() || {};
                     _schedCells = md.cells || {};
                     _schedMemos = md.memos || {};
