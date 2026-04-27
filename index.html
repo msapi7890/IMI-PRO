@@ -7,6 +7,7 @@
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
@@ -349,14 +350,16 @@
             <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
                 <span style="font-size:10.5px;font-weight:700;opacity:0.45;white-space:nowrap;">✏️ 클릭·드래그로 입력 <span style="font-size:9px;">(같은 버튼 다시 클릭 = 삭제)</span>:</span>
                 <button id="stamp_휴무" onclick="setScheduleStamp('휴무')" style="padding:4px 11px;border-radius:7px;border:1.5px solid #ef4444;background:rgba(239,68,68,0.12);color:#ef4444;font-size:11px;font-weight:900;cursor:pointer;transition:all 0.15s;">휴무</button>
+                <button id="stamp_9시" onclick="setScheduleStamp('9시')" style="padding:4px 11px;border-radius:7px;border:1.5px solid #eab308;background:rgba(234,179,8,0.12);color:#eab308;font-size:11px;font-weight:900;cursor:pointer;transition:all 0.15s;">9시</button>
                 <button id="stamp_12시" onclick="setScheduleStamp('12시')" style="padding:4px 11px;border-radius:7px;border:1.5px solid #3b82f6;background:rgba(59,130,246,0.12);color:#3b82f6;font-size:11px;font-weight:900;cursor:pointer;transition:all 0.15s;">12시</button>
+                <button id="stamp_15시" onclick="setScheduleStamp('15시')" style="padding:4px 11px;border-radius:7px;border:1.5px solid #ec4899;background:rgba(236,72,153,0.12);color:#ec4899;font-size:11px;font-weight:900;cursor:pointer;transition:all 0.15s;">15시</button>
                 <button id="stamp_17시" onclick="setScheduleStamp('17시')" style="padding:4px 11px;border-radius:7px;border:1.5px solid #22c55e;background:rgba(34,197,94,0.12);color:#22c55e;font-size:11px;font-weight:900;cursor:pointer;transition:all 0.15s;">17시</button>
                 <span style="width:1px;height:18px;background:var(--border-ui);opacity:0.5;flex-shrink:0;"></span>
                 <button id="stamp_연차" onclick="setScheduleStamp('연차')" style="padding:4px 11px;border-radius:7px;border:1.5px solid #8b5cf6;background:rgba(139,92,246,0.12);color:#8b5cf6;font-size:11px;font-weight:900;cursor:pointer;transition:all 0.15s;">연차</button>
                 <button id="stamp_반차" onclick="setScheduleStamp('반차')" style="padding:4px 11px;border-radius:7px;border:1.5px solid #f97316;background:rgba(249,115,22,0.12);color:#f97316;font-size:11px;font-weight:900;cursor:pointer;transition:all 0.15s;">반차</button>
                 <button id="stamp_안식" onclick="setScheduleStamp('안식')" style="padding:4px 11px;border-radius:7px;border:1.5px solid #14b8a6;background:rgba(20,184,166,0.12);color:#14b8a6;font-size:11px;font-weight:900;cursor:pointer;transition:all 0.15s;">안식</button>
             </div>
-            <button onclick="openSchedImageUpload()" style="padding:4px 14px;border-radius:7px;border:1.5px solid var(--border-ui);background:none;color:var(--text-main);font-size:11px;font-weight:900;cursor:pointer;transition:all 0.2s;flex-shrink:0;" title="시간표 이미지로 스케줄 자동 등록">📷 이미지 등록</button>
+            <button onclick="openSchedImageUpload()" style="padding:4px 14px;border-radius:7px;border:1.5px solid var(--border-ui);background:none;color:var(--text-main);font-size:11px;font-weight:900;cursor:pointer;transition:all 0.2s;flex-shrink:0;" title="시간표 이미지/엑셀로 스케줄 자동 등록">📷 이미지/엑셀 등록</button>
             <button id="schedEditBtn" onclick="toggleSchedEditMode()" style="padding:4px 14px;border-radius:7px;border:1.5px solid var(--border-ui);background:none;color:var(--text-main);font-size:11px;font-weight:900;cursor:pointer;transition:all 0.2s;flex-shrink:0;">✏️ 수정</button>
             <button onclick="closeScheduleModal()" style="font-size:24px;opacity:0.35;cursor:pointer;background:none;border:none;line-height:1;color:var(--text-main);transition:0.15s;flex-shrink:0;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.35">×</button>
         </div>
@@ -385,7 +388,7 @@
 </div>
 
 <!-- 스케줄 이미지 파싱 미리보기 모달 -->
-<input type="file" id="schedImgInput" accept="image/*" style="display:none;" onchange="processSchedImage(this.files[0]);this.value='';">
+<input type="file" id="schedImgInput" accept="image/*,.xlsx,.xls" style="display:none;" onchange="processSchedImage(this.files[0]);this.value='';">
 <div id="schedImgPreviewModal" class="hidden fixed inset-0 z-[10000] bg-black/70 backdrop-blur-sm flex items-center justify-center" onclick="if(event.target===this)closeSchedImgPreview()">
     <div style="position:relative;background:var(--bg-card);border-radius:16px;border:2px solid var(--border-ui);width:min(96vw,780px);max-height:85vh;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,0.4);">
         <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px 12px;border-bottom:2px solid var(--border-ui);flex-shrink:0;gap:12px;">
@@ -928,6 +931,12 @@
         } else if(val==='안식'){
             if(vspan) vspan.textContent='안식';
             cell.style.background='rgba(20,184,166,0.2)'; cell.style.color='#14b8a6'; cell.style.fontWeight='900';
+        } else if(val==='9시'){
+            if(vspan) vspan.textContent='9시';
+            cell.style.background='rgba(234,179,8,0.2)'; cell.style.color='#eab308'; cell.style.fontWeight='900';
+        } else if(val==='15시'){
+            if(vspan) vspan.textContent='15시';
+            cell.style.background='rgba(236,72,153,0.2)'; cell.style.color='#ec4899'; cell.style.fontWeight='900';
         }
     }
     function _schedSaveName(gKey, staffId, val){
@@ -1180,6 +1189,8 @@
                         else if(val==='연차'){bg='rgba(139,92,246,0.2)';color='#8b5cf6';fw='900';txt='연차';}
                         else if(val==='반차'){bg='rgba(249,115,22,0.2)';color='#f97316';fw='900';txt='반차';}
                         else if(val==='안식'){bg='rgba(20,184,166,0.2)';color='#14b8a6';fw='900';txt='안식';}
+                        else if(val==='9시'){bg='rgba(234,179,8,0.2)';color='#eab308';fw='900';txt='9시';}
+                        else if(val==='15시'){bg='rgba(236,72,153,0.2)';color='#ec4899';fw='900';txt='15시';}
                         else{var cc3=(_schedColors[g.key]||{})[staffId]||'';bg=cc3?_colRgba(cc3,isToday?0.16:(isSun||isSat?0.10:0.06)):(isToday?'rgba(245,158,11,0.15)':(isSun?'rgba(239,68,68,0.13)':(isSat?'rgba(96,165,250,0.13)':'')));}
                         var memo=_schedMemos[key]||'';
                         var foldColor=memo?'#ef4444':'rgba(130,130,130,0.13)';
@@ -2519,33 +2530,64 @@
         if(!CLAUDE_API_KEY){alert('⚠️ Claude API 키를 먼저 설정해주세요.');return;}
         document.getElementById('schedImgInput').click();
     }
+    var _SCHED_PARSE_SYS='직원 스케줄 표 데이터를 파싱하여 반드시 JSON만 반환하세요.\n형식: {"year":연도또는null,"month":월또는null,"entries":[{"name":"직원명","group":"그룹명(09시/15시/야간)","day":날짜숫자,"value":"상태값"}]}\n상태값은 "휴무","9시","12시","15시","17시","연차","반차","안식" 중 하나. 정상출근/빈칸은 entries에서 생략하세요.\nJSON 외 다른 텍스트는 절대 출력하지 마세요.';
+    async function _parseSchedResponse(res){
+        var data=await res.json();
+        var txt=(data.content[0].text||'').trim();
+        var m=txt.match(/\{[\s\S]*\}/);
+        if(!m)throw new Error('JSON을 찾을 수 없습니다.');
+        return JSON.parse(m[0]);
+    }
     async function processSchedImage(file){
         if(!file)return;
         document.getElementById('schedImgPreviewModal').classList.remove('hidden');
-        document.getElementById('schedImgYear').value = _schedYear;
-        document.getElementById('schedImgMonth').value = _schedMonth;
-        document.getElementById('schedImgPreviewBody').innerHTML='<div style="text-align:center;padding:40px;opacity:0.5;font-size:13px;font-weight:700;">📷 이미지 분석 중...</div>';
-        var reader=new FileReader();
-        reader.onload=async function(e){
-            var b64=e.target.result.split(',')[1];
-            var mime=file.type||'image/jpeg';
-            var sys='이미지에서 직원 스케줄 표를 파싱하여 반드시 JSON만 반환하세요.\n형식: {"year":연도또는null,"month":월또는null,"entries":[{"name":"직원명","group":"그룹명(09시/15시/야간)","day":날짜숫자,"value":"상태값"}]}\n상태값은 "휴무","12시","17시","연차","반차","안식" 중 하나. 정상출근/빈칸은 entries에서 생략하세요.\nJSON 외 다른 텍스트는 절대 출력하지 마세요.';
-            try{
-                var res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':CLAUDE_API_KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:2000,system:sys,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:mime,data:b64}},{type:'text',text:'위 시간표 이미지를 파싱해주세요.'}]}]})});
-                var data=await res.json();
-                var txt=(data.content[0].text||'').trim();
-                var m=txt.match(/\{[\s\S]*\}/);
-                if(!m)throw new Error('JSON을 찾을 수 없습니다.');
-                var parsed=JSON.parse(m[0]);
-                if(parsed.year)document.getElementById('schedImgYear').value=parsed.year;
-                if(parsed.month)document.getElementById('schedImgMonth').value=parsed.month;
-                _schedImportData=parsed;
-                _renderSchedImgPreview(parsed);
-            }catch(err){
-                document.getElementById('schedImgPreviewBody').innerHTML='<div style="color:#ef4444;padding:20px;font-weight:700;">⚠️ 파싱 오류: '+escHtml(err.message)+'</div>';
+        document.getElementById('schedImgYear').value=_schedYear;
+        document.getElementById('schedImgMonth').value=_schedMonth;
+        var isExcel=/\.(xlsx|xls)$/i.test(file.name);
+        document.getElementById('schedImgPreviewBody').innerHTML='<div style="text-align:center;padding:40px;opacity:0.5;font-size:13px;font-weight:700;">'+(isExcel?'📊 엑셀 분석 중...':'📷 이미지 분석 중...')+'</div>';
+        try{
+            var parsed;
+            if(isExcel){
+                parsed=await _parseExcelSched(file);
+            } else {
+                parsed=await _parseImageSched(file);
             }
-        };
-        reader.readAsDataURL(file);
+            if(parsed.year)document.getElementById('schedImgYear').value=parsed.year;
+            if(parsed.month)document.getElementById('schedImgMonth').value=parsed.month;
+            _schedImportData=parsed;
+            _renderSchedImgPreview(parsed);
+        }catch(err){
+            document.getElementById('schedImgPreviewBody').innerHTML='<div style="color:#ef4444;padding:20px;font-weight:700;">⚠️ 파싱 오류: '+escHtml(err.message)+'</div>';
+        }
+    }
+    async function _parseImageSched(file){
+        return new Promise(function(resolve,reject){
+            var reader=new FileReader();
+            reader.onload=async function(e){
+                try{
+                    var b64=e.target.result.split(',')[1];
+                    var mime=file.type||'image/jpeg';
+                    var res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':CLAUDE_API_KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:2000,system:_SCHED_PARSE_SYS,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:mime,data:b64}},{type:'text',text:'위 시간표 이미지를 파싱해주세요.'}]}]})});
+                    resolve(await _parseSchedResponse(res));
+                }catch(err){reject(err);}
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+    async function _parseExcelSched(file){
+        return new Promise(function(resolve,reject){
+            var reader=new FileReader();
+            reader.onload=async function(e){
+                try{
+                    var wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
+                    var ws=wb.Sheets[wb.SheetNames[0]];
+                    var csv=XLSX.utils.sheet_to_csv(ws);
+                    var res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':CLAUDE_API_KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:2000,system:_SCHED_PARSE_SYS,messages:[{role:'user',content:'아래 엑셀 데이터를 파싱해주세요:\n\n'+csv}]})});
+                    resolve(await _parseSchedResponse(res));
+                }catch(err){reject(err);}
+            };
+            reader.readAsArrayBuffer(file);
+        });
     }
     function _findBestStaffMatch(name){
         var best=null,bestScore=-1;
