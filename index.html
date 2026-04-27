@@ -2584,12 +2584,14 @@
         if(!CLAUDE_API_KEY){alert('⚠️ Claude API 키를 먼저 설정해주세요.');return;}
         document.getElementById('schedImgInput').click();
     }
-    var _SCHED_PARSE_SYS='직원 스케줄 표를 파싱하여 반드시 순수 JSON만 반환하세요 (마크다운 코드블록, 설명 텍스트 금지).\n형식: {"year":연도또는null,"month":월또는null,"entries":[{"name":"직원명","group":"9시","day":날짜숫자,"value":"상태값"}]}\n규칙:\n- 상태값은 "휴무","연차","반차","안식","9시","12시","15시","17시" 중 하나만\n- 정상출근/공백/빈칸은 entries에 포함하지 마세요\n- group: 표 구조로 판단, 구분 불명확하면 "9시"로 통일\n- day는 날짜 숫자만 (1~31)\n- 직원명은 표에서 읽은 그대로 기재\n- JSON 외 어떤 텍스트도 절대 출력 금지';
+    var _SCHED_PARSE_SYS='직원 스케줄 표를 파싱하여 반드시 순수 JSON만 반환하세요 (마크다운·코드블록·설명 텍스트 절대 금지).\n형식: {"year":연도또는null,"month":월또는null,"entries":[{"name":"직원명","group":"9시","day":날짜숫자,"value":"상태값"}]}\n\n[파싱 규칙]\n- 상태값: "휴무","연차","반차","안식","9시","12시","15시","17시" 중 하나\n- 정상출근·공백·빈칸은 entries에 포함하지 말 것\n- group: 표에 명시된 근무조(9시/12시/15시/17시/야간) 사용. 불명확하면 "9시"\n- day: 날짜 숫자만 (1~31). 날짜 헤더가 열이면 행으로, 행이면 열로 인식\n- 직원명: 표에서 읽은 한글 이름 그대로 기재\n- 값이 하나도 없으면 entries는 빈 배열 []\n- JSON 외 텍스트 절대 출력 금지';
+    var _schedLastRawResponse='';
     async function _parseSchedResponse(res){
         var data=await res.json();
         if(data.error)throw new Error('API 오류: '+data.error.message);
         if(!data.content||!data.content[0])throw new Error('응답 없음 (status '+res.status+')');
         var txt=(data.content[0].text||'').trim();
+        _schedLastRawResponse=txt;
         var m=txt.match(/\{[\s\S]*\}/);
         if(!m)throw new Error('JSON 없음. Claude 응답: '+txt.slice(0,200));
         return JSON.parse(m[0]);
@@ -2638,7 +2640,13 @@
                     var wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
                     var ws=wb.Sheets[wb.SheetNames[0]];
                     var csv=XLSX.utils.sheet_to_csv(ws);
-                    var res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':CLAUDE_API_KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:2000,system:_SCHED_PARSE_SYS,messages:[{role:'user',content:'아래 엑셀 데이터를 파싱해주세요:\n\n'+csv}]})});
+                    /* 빈 행 제거 + 각 행의 후행 빈 콤마 제거 → 토큰 대폭 절감 */
+                    var rows=csv.split('\n')
+                        .map(function(r){return r.replace(/,+$/,'');})
+                        .filter(function(r){return r.replace(/,/g,'').trim().length>0;});
+                    if(rows.length>80)rows=rows.slice(0,80);
+                    var trimmedCsv=rows.join('\n');
+                    var res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':CLAUDE_API_KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:2000,system:_SCHED_PARSE_SYS,messages:[{role:'user',content:'아래 엑셀 데이터를 파싱해주세요:\n\n'+trimmedCsv}]})});
                     resolve(await _parseSchedResponse(res));
                 }catch(err){reject(err);}
             };
@@ -2662,8 +2670,10 @@
     }
     function _renderSchedImgPreview(parsed){
         var entries=parsed.entries||[];
+        /* Claude 원본 응답 토글 블록 */
+        var rawBlock='<details style="margin-bottom:12px;border:1px solid var(--border-ui);border-radius:8px;overflow:hidden;"><summary style="padding:7px 12px;font-size:10.5px;font-weight:900;cursor:pointer;opacity:0.6;user-select:none;">🔍 Claude 원본 응답 보기</summary><pre style="padding:10px 12px;font-size:10px;white-space:pre-wrap;word-break:break-all;margin:0;opacity:0.75;max-height:180px;overflow-y:auto;">'+escHtml(_schedLastRawResponse)+'</pre></details>';
         if(entries.length===0){
-            document.getElementById('schedImgPreviewBody').innerHTML='<div style="text-align:center;padding:30px;opacity:0.5;">인식된 스케줄 항목이 없습니다.</div>';
+            document.getElementById('schedImgPreviewBody').innerHTML=rawBlock+'<div style="text-align:center;padding:20px;opacity:0.5;">인식된 스케줄 항목이 없습니다.<br><span style="font-size:10px;">위 원본 응답을 확인해주세요.</span></div>';
             return;
         }
         var byName={};
@@ -2690,7 +2700,7 @@
             ri++;
         });
         html+='</tbody></table>';
-        document.getElementById('schedImgPreviewBody').innerHTML=html;
+        document.getElementById('schedImgPreviewBody').innerHTML=rawBlock+html;
         ri=0;
         Object.keys(byName).forEach(function(name){
             var best=_findBestStaffMatch(name);
