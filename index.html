@@ -2585,18 +2585,90 @@
         if(!CLAUDE_API_KEY){alert('⚠️ Claude API 키를 먼저 설정해주세요.');return;}
         document.getElementById('schedImgInput').click();
     }
+    var _pasteRawRows=[];
     function openSchedTextPaste(){
         document.getElementById('schedImgModalTitle').textContent='📋 엑셀 붙여넣기 등록';
         document.getElementById('schedImgYear').value=_schedYear;
         document.getElementById('schedImgMonth').value=_schedMonth;
         document.getElementById('schedImgPreviewModal').classList.remove('hidden');
+        _pasteRawRows=[];
+        _schedImportData=null;
         document.getElementById('schedImgPreviewBody').innerHTML=
-            '<div style="font-size:11px;margin-bottom:10px;padding:10px;background:rgba(59,130,246,0.08);border-radius:8px;border:1px solid rgba(59,130,246,0.2);line-height:1.8;">'+
-            '📌 <b>날짜 열 + 직원 이름 헤더 행을 포함하여</b> 복사(<b>Ctrl+C</b>)하세요.<br>'+
-            '<span style="opacity:0.6;">· 색상은 무시되고 텍스트만 사용됩니다<br>· 휴무가능/실휴무인원 등 불필요한 열은 자동 무시됩니다</span></div>'+
-            '<textarea id="schedPasteArea" placeholder="여기에 붙여넣기 (Ctrl+V)..." style="width:100%;height:180px;padding:10px;border-radius:9px;border:1.5px solid var(--border-ui);background:var(--bg-chat);color:var(--text-main);font-size:11px;font-family:monospace;resize:vertical;box-sizing:border-box;"></textarea>'+
-            '<button onclick="analyzeSchedPasteText()" style="margin-top:10px;width:100%;padding:10px;border-radius:9px;background:var(--active-focus-color);color:#fff;border:none;font-size:13px;font-weight:900;cursor:pointer;">🔍 적용 미리보기</button>';
-        setTimeout(function(){var ta=document.getElementById('schedPasteArea');if(ta)ta.focus();},100);
+            '<div id="pasteDrop" tabindex="0" style="outline:none;width:100%;min-height:120px;border:2px dashed var(--border-ui);border-radius:10px;display:flex;align-items:center;justify-content:center;cursor:text;box-sizing:border-box;padding:18px;background:var(--bg-chat);transition:border-color 0.2s;" '+
+            'onpaste="_onSchedPaste(event)" onclick="document.getElementById(\'_hiddenPasteTA\').focus()">'+
+            '<div id="pasteDropHint" style="text-align:center;pointer-events:none;">'+
+            '<div style="font-size:28px;margin-bottom:6px;">📋</div>'+
+            '<div style="font-size:13px;font-weight:900;margin-bottom:4px;">여기를 클릭 후 Ctrl+V</div>'+
+            '<div style="font-size:10.5px;opacity:0.55;line-height:1.7;">엑셀에서 날짜·그룹헤더·직원이름 포함 전체 선택 후 복사하세요<br>색상은 무시되고 텍스트만 인식됩니다</div>'+
+            '</div></div>'+
+            '<textarea id="_hiddenPasteTA" style="position:absolute;opacity:0;width:1px;height:1px;pointer-events:none;" onpaste="_onSchedPaste(event)"></textarea>'+
+            '<div id="pasteTableWrap" style="margin-top:10px;overflow-x:auto;display:none;max-height:260px;overflow-y:auto;border-radius:8px;border:1px solid var(--border-ui);"></div>'+
+            '<div id="pasteAnalysisWrap" style="margin-top:10px;display:none;"></div>';
+        setTimeout(function(){
+            var el=document.getElementById('pasteDrop');
+            if(el)el.focus();
+        },120);
+    }
+    function _onSchedPaste(e){
+        e.preventDefault();
+        var cd=e.clipboardData||window.clipboardData;
+        var text=cd.getData('text/plain')||'';
+        if(!text.trim()){return;}
+        _pasteRawRows=text.split('\n').map(function(r){return r.replace(/\r$/,'').split('\t');});
+        _renderPasteGrid(_pasteRawRows);
+        analyzeSchedPasteText();
+    }
+    function _renderPasteGrid(rows){
+        if(!rows||rows.length===0)return;
+        /* 헤더행, 그룹행 인식 */
+        var staffHdrIdx=0;
+        for(var i=0;i<Math.min(rows.length-1,6);i++){
+            if(/^[1-9]\d?$/.test((rows[i+1]&&rows[i+1][0])||'')){staffHdrIdx=i;break;}
+        }
+        var grpHdrIdx=staffHdrIdx>0?staffHdrIdx-1:-1;
+        var colGrpMap=grpHdrIdx>=0?_buildPasteColGrpMap(rows[grpHdrIdx]):{};
+        var headers=rows[staffHdrIdx];
+        var dateCol=0;
+        for(var c=0;c<headers.length;c++){if(headers[c]==='날짜'||headers[c]==='일'){dateCol=c;break;}}
+        var KNOWN_VAL={휴무:1,연차:1,반차:1,안식:1,'9시':1,'12시':1,'15시':1,'17시':1};
+        /* 테이블 HTML */
+        var html='<table style="border-collapse:collapse;font-size:10.5px;white-space:nowrap;width:100%;">';
+        rows.forEach(function(row,ri){
+            var isGrpHdr=ri===grpHdrIdx;
+            var isStaffHdr=ri===staffHdrIdx;
+            var isDataRow=ri>staffHdrIdx&&/^[1-9]\d?$/.test((row[dateCol]||'').trim());
+            var trStyle='';
+            if(isGrpHdr)trStyle='background:rgba(99,102,241,0.13);';
+            else if(isStaffHdr)trStyle='background:rgba(59,130,246,0.13);';
+            else if(isDataRow&&ri%2===0)trStyle='background:rgba(0,0,0,0.04);';
+            html+='<tr style="'+trStyle+'">';
+            row.forEach(function(cell,ci){
+                cell=(cell||'').trim();
+                var tdStyle='padding:3px 6px;border:1px solid rgba(128,128,128,0.15);max-width:80px;overflow:hidden;text-overflow:ellipsis;';
+                var content=cell;
+                if(isStaffHdr&&_isPasteName(cell)){
+                    var gc=_GCOL[colGrpMap[ci]!==undefined?colGrpMap[ci]:0]||'#888';
+                    content='<b style="color:'+gc+'">'+cell+'</b>';
+                } else if(isGrpHdr&&_PASTE_GRP[cell]!==undefined){
+                    var gc2=_GCOL[_PASTE_GRP[cell]]||'#888';
+                    content='<span style="color:'+gc2+';font-weight:900;">'+cell+'</span>';
+                } else if(isDataRow&&KNOWN_VAL[cell]){
+                    var vc={'휴무':'#ef4444','연차':'#f59e0b','반차':'#f97316','안식':'#8b5cf6','9시':'#eab308','12시':'#3b82f6','15시':'#ec4899','17시':'#22c55e'}[cell]||'#6b7280';
+                    content='<span style="background:'+vc+'22;color:'+vc+';padding:1px 5px;border-radius:5px;font-weight:900;font-size:9.5px;">'+cell+'</span>';
+                }
+                if(isGrpHdr||isStaffHdr)tdStyle+='font-weight:700;';
+                html+='<td style="'+tdStyle+'">'+content+'</td>';
+            });
+            html+='</tr>';
+        });
+        html+='</table>';
+        var wrap=document.getElementById('pasteTableWrap');
+        if(wrap){wrap.innerHTML=html;wrap.style.display='block';}
+        /* 붙여넣기 존 축소 */
+        var drop=document.getElementById('pasteDrop');
+        if(drop){drop.style.minHeight='36px';drop.style.padding='6px 12px';drop.style.borderStyle='solid';drop.style.justifyContent='flex-start';}
+        var hint=document.getElementById('pasteDropHint');
+        if(hint)hint.innerHTML='<span style="font-size:10.5px;opacity:0.55;">다시 붙여넣으려면 여기를 클릭 후 Ctrl+V</span>';
     }
     /* 그룹 헤더 키워드 → gIdx */
     var _PASTE_GRP={'09시':0,'9시':0,'12시':3,'15시':1,'17시':4,'야간':2,'나이트':2};
@@ -2614,34 +2686,27 @@
         return map;
     }
     function analyzeSchedPasteText(){
-        var ta=document.getElementById('schedPasteArea');
-        if(!ta)return;
-        var text=ta.value.trim();
-        if(!text){alert('내용을 붙여넣어 주세요.');return;}
-        var rows=text.split('\n').map(function(r){return r.split('\t').map(function(c){return c.trim();});});
+        var rows=_pasteRawRows;
+        if(!rows||rows.length<2){return;}
         /* 직원헤더 행 탐색: 다음 행 첫 셀이 날짜 숫자면 현재 행 = 직원헤더 */
         var staffHdrIdx=0;
         for(var i=0;i<Math.min(rows.length-1,6);i++){
-            if(/^[1-9]\d?$/.test((rows[i+1]&&rows[i+1][0])||'')){staffHdrIdx=i;break;}
+            if(/^[1-9]\d?$/.test(((rows[i+1]||[])[0]||'').trim())){staffHdrIdx=i;break;}
         }
-        /* 그룹헤더 행: 직원헤더 바로 위 행 */
         var grpHdrIdx=staffHdrIdx>0?staffHdrIdx-1:-1;
         var colGrpMap=grpHdrIdx>=0?_buildPasteColGrpMap(rows[grpHdrIdx]):{};
         var headers=rows[staffHdrIdx];
-        /* 날짜 열 */
         var dateCol=0;
-        for(var c=0;c<headers.length;c++){if(headers[c]==='날짜'||headers[c]==='일'){dateCol=c;break;}}
-        /* 그룹별 다음 staffId 계산 */
+        for(var c=0;c<headers.length;c++){var hc=(headers[c]||'').trim();if(hc==='날짜'||hc==='일'){dateCol=c;break;}}
         var nextIdByGrp={};
         SCHED_GROUPS.forEach(function(g,gi){
             var ids=Object.keys(_schedNames[g.key]||{}).map(Number);
             nextIdByGrp[gi]=ids.length>0?Math.max.apply(null,ids)+1:0;
         });
-        /* 열↔직원 매핑 (미등록 직원 자동 추가) */
         var colStaffMap={};var newStaff=[];
         for(var c=0;c<headers.length;c++){
             if(c===dateCol)continue;
-            var h=headers[c]; if(!_isPasteName(h))continue;
+            var h=(headers[c]||'').trim(); if(!_isPasteName(h))continue;
             var gIdx=colGrpMap[c]!==undefined?colGrpMap[c]:0;
             var m=_findBestStaffMatch(h);
             if(m&&m.score>=60){
@@ -2652,45 +2717,44 @@
                 newStaff.push({gKey:SCHED_GROUPS[gIdx].key,staffId:sid,name:h,gIdx:gIdx});
             }
         }
+        var aw=document.getElementById('pasteAnalysisWrap');
         if(Object.keys(colStaffMap).length===0){
-            document.getElementById('schedImgPreviewBody').innerHTML=
-                '<div style="color:#ef4444;padding:20px;font-weight:700;">⚠️ 직원 이름(2~3글자 한글)을 인식하지 못했습니다.<br><span style="font-size:10px;opacity:0.7;">날짜 열과 직원 이름 헤더 행이 포함됐는지 확인하세요.</span></div>';
+            if(aw)aw.innerHTML='<div style="color:#ef4444;padding:12px;font-weight:700;font-size:11.5px;">⚠️ 직원 이름(2~3글자 한글)을 인식하지 못했습니다.<br><span style="font-size:10px;opacity:0.7;">날짜 열과 직원 이름 헤더 행이 포함됐는지 확인하세요.</span></div>';
+            if(aw)aw.style.display='block';
             return;
         }
-        /* 데이터 파싱 */
         var year=parseInt(document.getElementById('schedImgYear').value)||_schedYear;
         var month=parseInt(document.getElementById('schedImgMonth').value)||_schedMonth;
         var updates={};var statusCnt=0;var clearCnt=0;
         var KNOWN={'휴무':1,'연차':1,'반차':1,'안식':1,'9시':1,'12시':1,'15시':1,'17시':1};
         for(var r=staffHdrIdx+1;r<rows.length;r++){
             var row=rows[r];
-            var day=parseInt(row[dateCol]||'');
+            var day=parseInt((row[dateCol]||'').trim());
             if(isNaN(day)||day<1||day>31)continue;
-            for(var c in colStaffMap){
-                var info=colStaffMap[c];
-                var cell=row[parseInt(c)]||'';
+            for(var cv in colStaffMap){
+                var info=colStaffMap[cv];
+                var cell=(row[parseInt(cv)]||'').trim();
                 var fbKey='work_schedule/'+year+'/'+month+'/cells/'+info.gIdx+'_'+info.staffId+'_'+day;
                 var status=null;
                 if(cell){status=KNOWN[cell]?cell:'휴무';statusCnt++;}else{clearCnt++;}
                 updates[fbKey]=status;
             }
         }
-        /* 미리보기 */
         var existTags='',newTags='';
         Object.keys(colStaffMap).forEach(function(c){
             var info=colStaffMap[c];var gc=_GCOL[info.gIdx]||'#888';
             var tag='<span style="display:inline-block;padding:2px 9px;border-radius:12px;background:'+gc+'22;border:1px solid '+gc+'55;font-size:10.5px;font-weight:900;margin:2px;color:'+gc+'">'+SCHED_GROUPS[info.gIdx].label+' '+info.name+(info.isNew?' 🆕':'')+'</span>';
             if(info.isNew)newTags+=tag;else existTags+=tag;
         });
-        var html='<div style="margin-bottom:10px;padding:12px;border-radius:10px;background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.25);font-size:11.5px;">';
-        html+='<b>기존 직원</b> (매핑)<br>'+(existTags||'<span style="opacity:0.4;font-size:10px;">없음</span>')+'<br>';
-        if(newTags)html+='<b style="margin-top:6px;display:block;">신규 직원 자동 추가 🆕</b>'+newTags+'<br>';
+        var html='<div style="margin-bottom:8px;padding:10px 12px;border-radius:10px;background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.25);font-size:11.5px;">';
+        html+='<b>인식된 직원</b><br>'+(existTags||'<span style="opacity:0.4;font-size:10px;">없음</span>');
+        if(newTags)html+='<br><b style="margin-top:4px;display:block;">신규 자동 추가 🆕</b>'+newTags;
         html+='</div>';
-        html+='<div style="font-size:11.5px;padding:12px;border-radius:8px;background:var(--bg-body);line-height:2.1;">';
-        html+='📝 상태값 등록: <b>'+statusCnt+'개</b><br>🗑 빈 칸 초기화: <b>'+clearCnt+'개</b><br>';
-        if(newStaff.length>0)html+='<span style="color:#f59e0b;font-weight:900;">⚠ 신규 직원 '+newStaff.length+'명이 스케줄에 추가됩니다</span><br>';
+        html+='<div style="font-size:11.5px;padding:10px 12px;border-radius:8px;background:var(--bg-body);line-height:2.1;">';
+        html+='📝 상태값 등록: <b>'+statusCnt+'개</b>&nbsp;&nbsp;🗑 빈 칸 초기화: <b>'+clearCnt+'개</b><br>';
+        if(newStaff.length>0)html+='<span style="color:#f59e0b;font-weight:900;">⚠ 신규 직원 '+newStaff.length+'명이 함께 등록됩니다</span><br>';
         html+='<span style="opacity:0.45;font-size:10px;">위 직원들의 '+year+'년 '+month+'월 전체 스케줄이 교체됩니다</span></div>';
-        document.getElementById('schedImgPreviewBody').innerHTML=html;
+        if(aw){aw.innerHTML=html;aw.style.display='block';}
         _schedImportData={direct:true,updates:updates,year:year,month:month,newStaff:newStaff};
     }
     var _SCHED_PARSE_SYS='직원 스케줄 표를 파싱하여 반드시 순수 JSON만 반환하세요. (마크다운·코드블록 절대 금지)\n형식: {"year":연도또는null,"month":월또는null,"entries":[{"name":"직원명","group":"9시","day":날짜숫자,"value":"상태값"}]}\n\n[표 유형별 파싱]\n◆ 유형A: 열=직원명, 행=날짜, 셀=상태어(휴무/연차/반차/안식 등)\n  → name=열헤더 직원명, day=행헤더 날짜, value=셀 상태어\n◆ 유형B: 행=날짜, 열=근무조(9시/12시/15시/17시/야간), 셀=근무자 이름들\n  → 이름 하나당 entry 생성: name=이름, group=열헤더 근무조, day=행헤더 날짜, value=열헤더 근무조명(예:"9시")\n◆ 유형C: 행=날짜, 셀에 이름만 나열 (근무조 구분 없음)\n  → 이름 하나당 entry: name=이름, day=행헤더 날짜, group="9시", value="휴무"\n\n[공통 규칙]\n- day: 숫자(1~31)만, 빈칸/정상출근 제외, 직원명 표에서 읽은 그대로\n- JSON 외 어떤 텍스트도 절대 출력 금지';
@@ -2875,6 +2939,7 @@
         document.getElementById('schedImgPreviewModal').classList.add('hidden');
         document.getElementById('schedImgModalTitle').textContent='📷 시간표 이미지 파싱 결과';
         _schedImportData=null;
+        _pasteRawRows=[];
     }
     /* ── end 스케줄 이미지 등록 ── */
     var _anmYear=null, _anmMonth=null;
