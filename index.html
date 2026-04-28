@@ -36,7 +36,7 @@
             --mania-color: #60a5fa; --bay-color: #f472b6; color-scheme: dark;
         }
 
-        body { font-family: 'Pretendard', sans-serif; background-color: var(--bg-body); color: var(--text-main); height: 100vh; width: 100vw; overflow: hidden; display: flex; flex-direction: column; font-size: var(--base-font); transition: all 0.2s ease; }
+        body { font-family: 'Pretendard', sans-serif; background-color: var(--bg-body); color: var(--text-main); height: calc(100vh / 0.9); width: calc(100vw / 0.9); overflow: hidden; display: flex; flex-direction: column; font-size: var(--base-font); transition: all 0.2s ease; zoom: 0.9; }
         header { height: var(--header-h); background-color: var(--bg-card); border-bottom: 2px solid var(--border-ui); display: flex; align-items: center; z-index: 1100; }
         .h-left { width: var(--sidebar-w); padding: 0 1rem; border-right: 2px solid var(--border-ui); height: 100%; display: flex; align-items: center; }
         .h-center { flex: 1; padding: 0 1.2rem; display: flex; align-items: center; justify-content: space-between; }
@@ -346,20 +346,13 @@
                 <div id="scheduleTitle" style="font-size:14px;font-weight:900;min-width:150px;text-align:center;"></div>
                 <button onclick="scheduleNav(1)" style="font-size:15px;padding:3px 11px;border-radius:8px;border:1.5px solid var(--border-ui);background:none;cursor:pointer;color:var(--text-main);transition:0.15s;" onmouseover="this.style.borderColor='var(--active-focus-color)'" onmouseout="this.style.borderColor='var(--border-ui)'">▶</button>
             </div>
-            <!-- 입력 스탬프 툴바 -->
+            <!-- 표시 그룹 (헤더 이동) -->
             <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
-                <span style="font-size:10.5px;font-weight:700;opacity:0.45;white-space:nowrap;">✏️ 클릭·드래그로 입력 <span style="font-size:9px;">(같은 버튼 다시 클릭 = 삭제)</span>:</span>
-                <button id="stamp_휴무" onclick="setScheduleStamp('휴무')" style="padding:4px 11px;border-radius:7px;border:1.5px solid #ef4444;background:rgba(239,68,68,0.12);color:#ef4444;font-size:11px;font-weight:900;cursor:pointer;transition:all 0.15s;">휴무</button>
-                <button id="stamp_9시" onclick="setScheduleStamp('9시')" style="padding:4px 11px;border-radius:7px;border:1.5px solid #eab308;background:rgba(234,179,8,0.12);color:#eab308;font-size:11px;font-weight:900;cursor:pointer;transition:all 0.15s;">9시</button>
-                <button id="stamp_12시" onclick="setScheduleStamp('12시')" style="padding:4px 11px;border-radius:7px;border:1.5px solid #3b82f6;background:rgba(59,130,246,0.12);color:#3b82f6;font-size:11px;font-weight:900;cursor:pointer;transition:all 0.15s;">12시</button>
-                <button id="stamp_15시" onclick="setScheduleStamp('15시')" style="padding:4px 11px;border-radius:7px;border:1.5px solid #ec4899;background:rgba(236,72,153,0.12);color:#ec4899;font-size:11px;font-weight:900;cursor:pointer;transition:all 0.15s;">15시</button>
-                <button id="stamp_17시" onclick="setScheduleStamp('17시')" style="padding:4px 11px;border-radius:7px;border:1.5px solid #22c55e;background:rgba(34,197,94,0.12);color:#22c55e;font-size:11px;font-weight:900;cursor:pointer;transition:all 0.15s;">17시</button>
-                <span style="width:1px;height:18px;background:var(--border-ui);opacity:0.5;flex-shrink:0;"></span>
-                <button id="stamp_연차" onclick="setScheduleStamp('연차')" style="padding:4px 11px;border-radius:7px;border:1.5px solid #8b5cf6;background:rgba(139,92,246,0.12);color:#8b5cf6;font-size:11px;font-weight:900;cursor:pointer;transition:all 0.15s;">연차</button>
-                <button id="stamp_반차" onclick="setScheduleStamp('반차')" style="padding:4px 11px;border-radius:7px;border:1.5px solid #f97316;background:rgba(249,115,22,0.12);color:#f97316;font-size:11px;font-weight:900;cursor:pointer;transition:all 0.15s;">반차</button>
-                <button id="stamp_안식" onclick="setScheduleStamp('안식')" style="padding:4px 11px;border-radius:7px;border:1.5px solid #14b8a6;background:rgba(20,184,166,0.12);color:#14b8a6;font-size:11px;font-weight:900;cursor:pointer;transition:all 0.15s;">안식</button>
+                <span style="font-size:10px;font-weight:700;opacity:0.4;white-space:nowrap;">표시 그룹:</span>
+                <div id="schedGroupBtns" style="display:flex;gap:5px;flex-wrap:wrap;"></div>
             </div>
 <button onclick="openSchedTextPaste()" style="padding:4px 14px;border-radius:7px;border:1.5px solid var(--border-ui);background:none;color:var(--text-main);font-size:11px;font-weight:900;cursor:pointer;transition:all 0.2s;flex-shrink:0;" title="엑셀에서 복사한 내용 붙여넣기">📋 붙여넣기</button>
+            <button onclick="openHolidayMgr(event)" style="padding:4px 14px;border-radius:7px;border:1.5px solid var(--border-ui);background:none;color:#ef4444;font-size:11px;font-weight:900;cursor:pointer;transition:all 0.2s;flex-shrink:0;" title="공휴일 관리">🗓 공휴일</button>
             <button id="schedEditBtn" onclick="toggleSchedEditMode()" style="padding:4px 14px;border-radius:7px;border:1.5px solid var(--border-ui);background:none;color:var(--text-main);font-size:11px;font-weight:900;cursor:pointer;transition:all 0.2s;flex-shrink:0;">✏️ 수정</button>
             <button onclick="closeScheduleModal()" style="font-size:24px;opacity:0.35;cursor:pointer;background:none;border:none;line-height:1;color:var(--text-main);transition:0.15s;flex-shrink:0;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.35">×</button>
         </div>
@@ -370,19 +363,41 @@
             <button onclick="setStaffColor('')" style="width:100%;padding:4px;border-radius:6px;font-size:9.5px;font-weight:700;border:1.5px solid var(--border-ui);background:none;color:var(--text-sub);cursor:pointer;">초기화 (기본색)</button>
         </div>
         <!-- 메모 팝업 -->
-        <div id="schedMemoPopup" style="position:fixed;z-index:10000;background:var(--bg-card);border:2px solid var(--border-ui);border-radius:10px;padding:12px;width:210px;box-shadow:0 4px 20px rgba(0,0,0,0.35);display:none;">
+        <div id="schedMemoPopup" style="position:fixed;z-index:10000;background:var(--bg-card);border:2px solid var(--border-ui);border-radius:10px;padding:14px;width:300px;min-width:260px;box-shadow:0 4px 20px rgba(0,0,0,0.35);display:none;">
             <div style="font-size:10px;font-weight:900;margin-bottom:6px;opacity:0.55;">📝 셀 메모</div>
-            <textarea id="schedMemoInput" rows="3" style="width:100%;resize:none;border:1px solid var(--border-ui);border-radius:6px;padding:6px;font-size:11px;background:var(--bg-chat);color:var(--text-main);outline:none;box-sizing:border-box;"></textarea>
+            <textarea id="schedMemoInput" rows="5" style="width:100%;resize:vertical;border:1px solid var(--border-ui);border-radius:6px;padding:8px;font-size:12px;background:var(--bg-chat);color:var(--text-main);outline:none;box-sizing:border-box;min-height:80px;"></textarea>
             <div style="display:flex;gap:6px;margin-top:7px;">
                 <button onclick="saveCellMemoFromPopup()" style="flex:1;padding:5px;border-radius:6px;font-size:10px;font-weight:900;background:var(--active-focus-color);color:#fff;border:none;cursor:pointer;">저장</button>
                 <button onclick="deleteCellMemoFromPopup()" style="padding:5px 8px;border-radius:6px;font-size:10px;font-weight:900;border:1.5px solid #ef4444;color:#ef4444;background:none;cursor:pointer;">삭제</button>
                 <button onclick="closeMemoPopup()" style="padding:5px 8px;border-radius:6px;font-size:10px;font-weight:900;border:1.5px solid var(--border-ui);background:none;color:var(--text-sub);cursor:pointer;">취소</button>
             </div>
         </div>
-        <!-- 그룹 토글 바 -->
-        <div style="display:flex;align-items:center;gap:8px;padding:5px 18px;border-bottom:1px solid var(--border-ui);flex-shrink:0;">
-            <span style="font-size:10px;font-weight:700;opacity:0.4;white-space:nowrap;">표시 그룹:</span>
-            <div id="schedGroupBtns" style="display:flex;gap:5px;flex-wrap:wrap;"></div>
+        <!-- 공휴일 관리 팝업 -->
+        <div id="schedHolidayMgr" style="position:fixed;z-index:10002;background:var(--bg-card);border:2px solid var(--border-ui);border-radius:12px;padding:14px;width:250px;box-shadow:0 4px 24px rgba(0,0,0,0.4);display:none;" onclick="event.stopPropagation()">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                <span style="font-size:11px;font-weight:900;">🗓 공휴일 관리 &nbsp;<span id="holidayMgrTitle" style="opacity:0.5;font-size:10px;"></span></span>
+                <button onclick="closeHolidayMgr()" style="background:none;border:none;font-size:17px;cursor:pointer;color:var(--text-main);opacity:0.4;line-height:1;padding:0;">×</button>
+            </div>
+            <div id="holidayMgrBody" style="max-height:200px;overflow-y:auto;margin-bottom:8px;"></div>
+            <div style="display:flex;gap:6px;align-items:center;">
+                <input id="holidayMgrInput" type="number" min="1" max="31" placeholder="날짜 (1-31)" style="flex:1;padding:5px 8px;border:1.5px solid var(--border-ui);border-radius:6px;font-size:11px;background:var(--bg-chat);color:var(--text-main);outline:none;box-sizing:border-box;" onkeydown="if(event.key==='Enter')addCustomHoliday()">
+                <button onclick="addCustomHoliday()" style="padding:5px 10px;border-radius:6px;font-size:11px;font-weight:900;background:#ef4444;color:#fff;border:none;cursor:pointer;">추가</button>
+            </div>
+            <div style="margin-top:5px;font-size:9px;opacity:0.35;">※ 기본 공휴일 외 대체휴무·임시공휴일 추가</div>
+        </div>
+        <!-- 스탬프 입력 툴바 (두 번째 행으로 이동) -->
+        <div style="display:flex;align-items:center;gap:6px;padding:5px 18px;border-bottom:1px solid var(--border-ui);flex-shrink:0;flex-wrap:wrap;">
+            <span style="font-size:10.5px;font-weight:700;opacity:0.45;white-space:nowrap;">✏️ 클릭·드래그로 입력 <span style="font-size:9px;">(같은 버튼 다시 클릭 = 삭제)</span>:</span>
+            <button id="stamp_휴무" onclick="setScheduleStamp('휴무')" style="padding:4px 11px;border-radius:7px;border:1.5px solid #ef4444;background:rgba(239,68,68,0.12);color:#ef4444;font-size:11px;font-weight:900;cursor:pointer;transition:all 0.15s;">휴무</button>
+            <button id="stamp_9시" onclick="setScheduleStamp('9시')" style="padding:4px 11px;border-radius:7px;border:1.5px solid #eab308;background:rgba(234,179,8,0.12);color:#eab308;font-size:11px;font-weight:900;cursor:pointer;transition:all 0.15s;">9시</button>
+            <button id="stamp_12시" onclick="setScheduleStamp('12시')" style="padding:4px 11px;border-radius:7px;border:1.5px solid #d946ef;background:rgba(217,70,239,0.12);color:#d946ef;font-size:11px;font-weight:900;cursor:pointer;transition:all 0.15s;">12시</button>
+            <button id="stamp_15시" onclick="setScheduleStamp('15시')" style="padding:4px 11px;border-radius:7px;border:1.5px solid #06b6d4;background:rgba(6,182,212,0.12);color:#06b6d4;font-size:11px;font-weight:900;cursor:pointer;transition:all 0.15s;">15시</button>
+            <button id="stamp_17시" onclick="setScheduleStamp('17시')" style="padding:4px 11px;border-radius:7px;border:1.5px solid #22c55e;background:rgba(34,197,94,0.12);color:#22c55e;font-size:11px;font-weight:900;cursor:pointer;transition:all 0.15s;">17시</button>
+            <span style="width:1px;height:18px;background:var(--border-ui);opacity:0.5;flex-shrink:0;"></span>
+            <button id="stamp_연차" onclick="setScheduleStamp('연차')" style="padding:4px 11px;border-radius:7px;border:1.5px solid #8b5cf6;background:rgba(139,92,246,0.12);color:#8b5cf6;font-size:11px;font-weight:900;cursor:pointer;transition:all 0.15s;">연차</button>
+            <button id="stamp_반차" onclick="setScheduleStamp('반차')" style="padding:4px 11px;border-radius:7px;border:1.5px solid #f97316;background:rgba(249,115,22,0.12);color:#f97316;font-size:11px;font-weight:900;cursor:pointer;transition:all 0.15s;">반차</button>
+            <button id="stamp_안식" onclick="setScheduleStamp('안식')" style="padding:4px 11px;border-radius:7px;border:1.5px solid #14b8a6;background:rgba(20,184,166,0.12);color:#14b8a6;font-size:11px;font-weight:900;cursor:pointer;transition:all 0.15s;">안식</button>
+            <button id="stamp_교육" onclick="setScheduleStamp('교육')" style="padding:4px 11px;border-radius:7px;border:1.5px solid #f59e0b;background:rgba(245,158,11,0.12);color:#f59e0b;font-size:11px;font-weight:900;cursor:pointer;transition:all 0.15s;">교육</button>
         </div>
         <!-- 테이블 영역 -->
         <div style="flex:1;overflow:hidden;min-height:0;padding:12px 14px;">
@@ -622,7 +637,7 @@
     var ADMIN_PW = "mania3001!";
     var CLAUDE_API_KEY = "";
 
-    var currentMode = 'mania', chatHistories = {mania:"",bay:""};
+    var currentMode = 'mania', chatHistories = {mania_manual:"",bay_manual:"",mania_template:"",bay_template:""};
     var allNotices = {mania:{},bay:{}}, manualData = {mania:{text:"",files:[]},bay:{text:"",files:[]}};
     var urgentNotices = {};
     var allTemplates = {mania:{},bay:{}};
@@ -681,13 +696,14 @@
         if(v <= 16){
             var maniaPct=(v-12)*20+40;
             var bayPct=Math.round((v-12)*12.5+35);
-            var maxW=Math.round(chatW*0.86);
-            maniaW=Math.min(Math.round(chatW*maniaPct/100), maxW);
-            bayW=Math.min(Math.round(chatW*bayPct/100), maxW);
+            var maniaMaxW=Math.round(chatW*0.62);
+            var bayMaxW=Math.round(chatW*0.86);
+            maniaW=Math.min(Math.round(chatW*maniaPct/100), maniaMaxW);
+            bayW=Math.min(Math.round(chatW*bayPct/100), bayMaxW);
             document.documentElement.style.setProperty('--bubble-max-w', '88%');
         } else {
-            // 16 기준(mania:86%, bay:85%) → 18: +5%, 20: +9%
-            var maniaPct=Math.min(86+(v-16)*2.5, 95);
+            // 16 기준(mania:62%, bay:85%) → 18: +5%, 20: +9%
+            var maniaPct=Math.min(62+(v-16)*2.5, 88);
             var bayPct=Math.min(85+(v-16)*2.0, 93);
             var maxW=Math.round(chatW*0.97);
             maniaW=Math.min(Math.round(chatW*maniaPct/100), maxW);
@@ -716,9 +732,10 @@
     /* gIdx 기준 표시 순서: 9시(0) 12시(3) 15시(1) 17시(4) 야간(2) */
     var SCHED_DISPLAY_ORDER = [0,3,1,4,2];
     var _schedActiveGroups = null;
+    function _schedGroupStorageKey(){ return 'imi_sched_active_v3_'+_schedYear+'_'+_schedMonth; }
     function _getActiveGroups(){
         if(_schedActiveGroups===null){
-            try{var s=JSON.parse(localStorage.getItem('imi_sched_active_v2'));_schedActiveGroups=Array.isArray(s)?s:SCHED_GROUPS.map(function(g){return g.key;});}
+            try{var s=JSON.parse(localStorage.getItem(_schedGroupStorageKey()));_schedActiveGroups=Array.isArray(s)?s:SCHED_GROUPS.map(function(g){return g.key;});}
             catch(e){_schedActiveGroups=SCHED_GROUPS.map(function(g){return g.key;});}
         }
         return _schedActiveGroups;
@@ -730,7 +747,7 @@
             active=SCHED_DISPLAY_ORDER.map(function(gi){return SCHED_GROUPS[gi].key;}).filter(function(k){return active.indexOf(k)>=0||k===key;});
         }
         _schedActiveGroups=active;
-        localStorage.setItem('imi_sched_active_v2',JSON.stringify(active));
+        localStorage.setItem(_schedGroupStorageKey(),JSON.stringify(active));
         _renderGroupBtns();
         _buildSchedColMap();
         _renderScheduleTable();
@@ -738,7 +755,7 @@
     function _renderGroupBtns(){
         var bar=document.getElementById('schedGroupBtns'); if(!bar)return;
         var active=_getActiveGroups();
-        var colors={'g0':'#eab308','g3':'#3b82f6','g1':'#ec4899','g4':'#22c55e','g2':'#8b5cf6'};
+        var colors={'g0':'#eab308','g3':'#d946ef','g1':'#06b6d4','g4':'#22c55e','g2':'#8b5cf6'};
         bar.innerHTML='';
         SCHED_DISPLAY_ORDER.forEach(function(gi){
             var g=SCHED_GROUPS[gi];
@@ -755,6 +772,7 @@
     var _schedStamp = '휴무';
     var _schedCells = {}, _schedNames = {};
     var _schedDragging = false;
+    var _schedDragSeen = {};
     var _schedEditMode = false;
     var _schedMemos = {}, _schedMemoActiveKey = null;
     var _schedCellRef = null, _schedCellListener = null;
@@ -763,8 +781,25 @@
     var _schedSelStartCol = null, _schedSelStartDay = null;
     var _schedSelEndCol = null, _schedSelEndDay = null;
     var _schedColMap = [];
-    var _GCOL = ['#eab308','#ec4899','#8b5cf6','#3b82f6','#22c55e'];
-    var _SCHED_COL_PALETTE = ['#ef4444','#f97316','#eab308','#22c55e','#14b8a6','#3b82f6','#6366f1','#8b5cf6','#ec4899','#f59e0b','#78716c','#94a3b8'];
+    var _GCOL = ['#eab308','#06b6d4','#8b5cf6','#d946ef','#22c55e'];
+    var _SCHED_COL_PALETTE = ['#ef4444','#f97316','#eab308','#22c55e','#14b8a6','#3b82f6','#6366f1','#8b5cf6','#06b6d4','#f59e0b','#78716c','#94a3b8'];
+    /* ── 공휴일 데이터 2024-2030 (superkts.com 기준) ── */
+    var KR_HOLIDAYS = {
+        2024:{1:[1],2:[9,10,11,12],3:[1],4:[10],5:[5,6,15],6:[6],8:[15],9:[16,17,18],10:[3,9],12:[25]},
+        2025:{1:[1,27,28,29,30],3:[1,3],5:[5,6],6:[3,6],8:[15],10:[3,5,6,7,8,9],12:[25]},
+        2026:{1:[1],2:[16,17,18],3:[1,2],5:[5,24,25],6:[6],8:[15,17],9:[24,25,26],10:[3,5,9],12:[25]},
+        2027:{1:[1],2:[6,7,8,9],3:[1],5:[5,13],6:[6],8:[15,16],9:[14,15,16],10:[3,4,9,11],12:[25,27]},
+        2028:{1:[1,26,27,28],3:[1],4:[12],5:[2,5],6:[6],8:[15],10:[2,3,4,5,9],12:[25]},
+        2029:{1:[1,12,13,14],3:[1],5:[5,7,20,21],6:[6],8:[15],9:[21,22,23,24],10:[3,9],12:[25]},
+        2030:{1:[1],2:[2,3,4,5],3:[1],5:[5,6,9],6:[6],8:[15],9:[11,12,13],10:[3,9],12:[25]}
+    };
+    var _schedCustomHolidays = {};
+    function _isKrHoliday(year, month, day){
+        var fixed=(KR_HOLIDAYS[year]||{})[month]||[];
+        if(fixed.indexOf(day)>=0) return true;
+        var custom=_schedCustomHolidays[month]||[];
+        return custom.indexOf(day)>=0;
+    }
     function _schedKeyDown(e){
         if(e.key==='Escape'){
             if(_schedSelStartCol!==null){ _schedClearSel(); return; }
@@ -875,13 +910,14 @@
         _schedMonth += dir;
         if(_schedMonth > 12){ _schedMonth=1; _schedYear++; }
         if(_schedMonth < 1){ _schedMonth=12; _schedYear--; }
+        _schedActiveGroups = null;
         _loadScheduleAll();
     }
     function setScheduleStamp(val){
         if(val && val===_schedStamp){ val=''; } /* 같은 버튼 재클릭 → 해제 */
         _schedStamp = val || '';
-        var btnIds = ['stamp_휴무','stamp_12시','stamp_17시','stamp_연차','stamp_반차','stamp_안식'];
-        var btnVals = ['휴무','12시','17시','연차','반차','안식'];
+        var btnIds = ['stamp_휴무','stamp_9시','stamp_12시','stamp_15시','stamp_17시','stamp_연차','stamp_반차','stamp_안식','stamp_교육'];
+        var btnVals = ['휴무','9시','12시','15시','17시','연차','반차','안식','교육'];
         btnIds.forEach(function(id, i){
             var btn = document.getElementById(id);
             if(!btn) return;
@@ -899,50 +935,79 @@
             _schedCellListener = null;
         }
     }
+    function _staffMonthPath(){ return 'work_schedule/staff_by_month/'+_schedYear+'/'+_schedMonth; }
+    function _parseStaffRaw(rawNames){
+        var names={};
+        SCHED_GROUPS.forEach(function(g){
+            var raw=rawNames[g.key];
+            if(!raw||typeof raw!=='object'){ names[g.key]={}; }
+            else if(Array.isArray(raw)){ var o={}; raw.forEach(function(n,i){ if(n!=null)o[i]=n; }); names[g.key]=o; }
+            else { names[g.key]=raw; }
+        });
+        return names;
+    }
     function _loadScheduleAll(){
         _detachSchedCellListener();
         document.getElementById('scheduleTitle').textContent = _schedYear+'년 '+_schedMonth+'월 스케쥴';
         document.getElementById('scheduleTableWrap').innerHTML = '<div style="padding:30px;text-align:center;opacity:0.4;font-size:13px;">불러오는 중...</div>';
-        db.ref('work_schedule/staff').once('value', function(snap){
-            var rawNames = snap.val() || {};
-            _schedNames = {};
-            SCHED_GROUPS.forEach(function(g){
-                var raw = rawNames[g.key];
-                if(!raw || typeof raw!=='object'){ _schedNames[g.key]={}; }
-                else if(Array.isArray(raw)){
-                    var obj={}; raw.forEach(function(n,i){ if(n!=null) obj[i]=n; });
-                    _schedNames[g.key]=obj;
-                    db.ref('work_schedule/staff/'+g.key).set(obj);
-                } else { _schedNames[g.key]=raw; }
-            });
-            db.ref('work_schedule/staff_colors').once('value', function(snapC){
-                var rawC = snapC.val() || {};
-                _schedColors = {};
-                SCHED_GROUPS.forEach(function(g){ _schedColors[g.key]=(rawC[g.key]&&typeof rawC[g.key]==='object')?rawC[g.key]:{}; });
-                _schedCellRef = db.ref('work_schedule/'+_schedYear+'/'+_schedMonth);
-                _schedCellListener = _schedCellRef.on('value', function(snap2){
-                    var md = snap2.val() || {};
-                    _schedCells = md.cells || {};
-                    _schedMemos = md.memos || {};
-                    _renderGroupBtns();
-                    _renderScheduleTable();
+        /* 달별 직원 경로 시도 → 없으면 전역 staff 복사 */
+        db.ref(_staffMonthPath()).once('value', function(snapS){
+            var rawS=snapS.val();
+            function _continueLoad(rawNames){
+                _schedNames=_parseStaffRaw(rawNames);
+                db.ref('work_schedule/staff_colors').once('value', function(snapC){
+                    var rawC=snapC.val()||{};
+                    _schedColors={};
+                    SCHED_GROUPS.forEach(function(g){ _schedColors[g.key]=(rawC[g.key]&&typeof rawC[g.key]==='object')?rawC[g.key]:{}; });
+                    db.ref('work_schedule/custom_holidays/'+_schedYear).once('value', function(snapH){
+                        var rawH=snapH.val()||{};
+                        _schedCustomHolidays={};
+                        Object.keys(rawH).forEach(function(m){ var arr=rawH[m]; _schedCustomHolidays[parseInt(m)]=Array.isArray(arr)?arr:Object.values(arr).map(Number); });
+                        _schedCellRef=db.ref('work_schedule/'+_schedYear+'/'+_schedMonth);
+                        _schedCellListener=_schedCellRef.on('value', function(snap2){
+                            var md=snap2.val()||{};
+                            _schedCells=md.cells||{};
+                            _schedMemos=md.memos||{};
+                            _renderGroupBtns();
+                            _renderScheduleTable();
+                        });
+                    });
                 });
-            });
+            }
+            if(rawS){
+                _continueLoad(rawS);
+            } else {
+                /* 해당 달 첫 방문 → 전역 staff 복사 후 달별 저장 */
+                db.ref('work_schedule/staff').once('value', function(snapG){
+                    var rawG=snapG.val()||{};
+                    var toSave={};
+                    SCHED_GROUPS.forEach(function(g){
+                        var raw=rawG[g.key];
+                        if(raw&&typeof raw==='object'){
+                            if(Array.isArray(raw)){ var o={}; raw.forEach(function(n,i){ if(n!=null)o[i]=n; }); toSave[g.key]=o; }
+                            else { toSave[g.key]=raw; }
+                        } else { toSave[g.key]={}; }
+                    });
+                    db.ref(_staffMonthPath()).set(toSave);
+                    _continueLoad(toSave);
+                });
+            }
         });
     }
     function _schedCellKey(gIdx, staffId, day){ return gIdx+'_'+staffId+'_'+day; }
     function _schedApplyCell(gIdx, staffId, day){
-        if(!_schedEditMode || !_schedStamp) return; /* 수정 모드 아니거나 스탬프 미선택 */
+        if(!_schedEditMode || !_schedStamp) return;
         var key = _schedCellKey(gIdx, staffId, day);
+        if(_schedDragging && _schedDragSeen[key]) return; /* 드래그 중 이미 적용한 셀 스킵 */
+        _schedDragSeen[key] = true;
         var path = 'work_schedule/'+_schedYear+'/'+_schedMonth+'/cells/'+key;
         var newVal;
-        if(_schedCells[key] === _schedStamp){
-            /* 같은 값 → 토글 삭제 */
+        if(!_schedDragging && _schedCells[key] === _schedStamp){
+            /* 단일 클릭만 토글 삭제 (드래그 중엔 토글 없음) */
             newVal = '';
             delete _schedCells[key];
             db.ref(path).remove();
         } else {
-            /* 새 값 적용 */
             newVal = _schedStamp;
             _schedCells[key] = _schedStamp;
             db.ref(path).set(_schedStamp);
@@ -952,45 +1017,122 @@
     }
     function _applySchedCellStyle(cell, val, day){
         var dow = new Date(_schedYear, _schedMonth-1, day).getDay();
+        var isSunC=dow===0,isSatC=dow===6;
+        var isHolC=!isSunC&&!isSatC&&_isKrHoliday(_schedYear,_schedMonth,day);
+        var isRedC=isSunC||isHolC;
         var key = cell.id.replace('scell_','');
         var parts = key.split('_');
         var gKey = SCHED_GROUPS[parseInt(parts[0])].key;
         var cc = (_schedColors[gKey]||{})[parseInt(parts[1])]||'';
-        var baseBg = cc ? _colRgba(cc, 0.06) : (dow===0?'rgba(239,68,68,0.13)':(dow===6?'rgba(96,165,250,0.13)':''));
+        var baseBg = cc ? _colRgba(cc, 0.06) : (isRedC?'rgba(239,68,68,0.13)':(isSatC?'rgba(96,165,250,0.13)':''));
         var vspan = document.getElementById('sval_'+key);
         if(!val){
             if(vspan) vspan.textContent='';
             cell.style.background=baseBg; cell.style.color=''; cell.style.fontWeight='';
         } else if(val==='휴무'){
             if(vspan) vspan.textContent='휴무';
-            cell.style.background='rgba(239,68,68,0.2)'; cell.style.color='#ef4444'; cell.style.fontWeight='900';
+            cell.style.background=baseBg; cell.style.color='#ef4444'; cell.style.fontWeight='900';
         } else if(val==='12시'){
             if(vspan) vspan.textContent='12시';
-            cell.style.background='rgba(59,130,246,0.2)'; cell.style.color='#3b82f6'; cell.style.fontWeight='900';
+            cell.style.background=baseBg; cell.style.color='#d946ef'; cell.style.fontWeight='900';
         } else if(val==='17시'){
             if(vspan) vspan.textContent='17시';
-            cell.style.background='rgba(34,197,94,0.2)'; cell.style.color='#22c55e'; cell.style.fontWeight='900';
+            cell.style.background=baseBg; cell.style.color='#22c55e'; cell.style.fontWeight='900';
         } else if(val==='연차'){
             if(vspan) vspan.textContent='연차';
-            cell.style.background='rgba(139,92,246,0.2)'; cell.style.color='#8b5cf6'; cell.style.fontWeight='900';
+            cell.style.background=baseBg; cell.style.color='#8b5cf6'; cell.style.fontWeight='900';
         } else if(val==='반차'){
             if(vspan) vspan.textContent='반차';
-            cell.style.background='rgba(249,115,22,0.2)'; cell.style.color='#f97316'; cell.style.fontWeight='900';
+            cell.style.background=baseBg; cell.style.color='#f97316'; cell.style.fontWeight='900';
         } else if(val==='안식'){
             if(vspan) vspan.textContent='안식';
-            cell.style.background='rgba(20,184,166,0.2)'; cell.style.color='#14b8a6'; cell.style.fontWeight='900';
+            cell.style.background=baseBg; cell.style.color='#14b8a6'; cell.style.fontWeight='900';
+        } else if(val==='교육'){
+            if(vspan) vspan.textContent='교육';
+            cell.style.background=baseBg; cell.style.color='#f59e0b'; cell.style.fontWeight='900';
         } else if(val==='9시'){
             if(vspan) vspan.textContent='9시';
-            cell.style.background='rgba(234,179,8,0.2)'; cell.style.color='#eab308'; cell.style.fontWeight='900';
+            cell.style.background=baseBg; cell.style.color='#eab308'; cell.style.fontWeight='900';
         } else if(val==='15시'){
             if(vspan) vspan.textContent='15시';
-            cell.style.background='rgba(236,72,153,0.2)'; cell.style.color='#ec4899'; cell.style.fontWeight='900';
+            cell.style.background=baseBg; cell.style.color='#06b6d4'; cell.style.fontWeight='900';
         }
     }
     function _schedSaveName(gKey, staffId, val){
         if(!_schedNames[gKey]) _schedNames[gKey]={};
         _schedNames[gKey][staffId] = val;
-        db.ref('work_schedule/staff/'+gKey+'/'+staffId).set(val||'');
+        db.ref(_staffMonthPath()+'/'+gKey+'/'+staffId).set(val||'');
+    }
+    /* ── 공휴일 관리 ── */
+    function openHolidayMgr(e){
+        e.stopPropagation();
+        var pop=document.getElementById('schedHolidayMgr'); if(!pop) return;
+        var r=e.target.getBoundingClientRect();
+        pop.style.top=(r.bottom+6)+'px';
+        pop.style.right=(window.innerWidth-r.right)+'px';
+        pop.style.left='auto';
+        document.getElementById('holidayMgrTitle').textContent=_schedYear+'년 '+_schedMonth+'월';
+        _renderHolidayMgrBody();
+        pop.style.display='block';
+        setTimeout(function(){document.addEventListener('click',_holidayMgrOutside,{once:true});},10);
+    }
+    function _holidayMgrOutside(e){
+        var pop=document.getElementById('schedHolidayMgr');
+        if(pop&&!pop.contains(e.target)) pop.style.display='none';
+    }
+    function closeHolidayMgr(){
+        var pop=document.getElementById('schedHolidayMgr'); if(pop) pop.style.display='none';
+    }
+    function _renderHolidayMgrBody(){
+        var body=document.getElementById('holidayMgrBody'); if(!body) return;
+        var m=_schedMonth;
+        var fixed=(KR_HOLIDAYS[_schedYear]||{})[m]||[];
+        var custom=_schedCustomHolidays[m]||[];
+        var html='';
+        if(fixed.length===0&&custom.length===0){
+            html='<div style="font-size:10px;opacity:0.4;padding:4px 0;">이 달 공휴일 없음</div>';
+        } else {
+            var allDays=fixed.slice().concat(custom).filter(function(d,i,a){return a.indexOf(d)===i;}).sort(function(a,b){return a-b;});
+            allDays.forEach(function(d){
+                var isCustom=custom.indexOf(d)>=0;
+                html+='<div style="display:flex;align-items:center;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--border-ui);font-size:11px;">';
+                html+='<span><b>'+m+'/'+d+'</b> <span style="font-size:9px;opacity:0.5;">'+(isCustom?'커스텀':'기본')+'</span></span>';
+                if(isCustom){
+                    html+='<button onclick="deleteCustomHoliday('+d+')" style="padding:1px 6px;border-radius:4px;border:1px solid #ef4444;color:#ef4444;background:none;font-size:9px;cursor:pointer;">삭제</button>';
+                } else {
+                    html+='<span style="font-size:9px;opacity:0.3;">고정</span>';
+                }
+                html+='</div>';
+            });
+        }
+        body.innerHTML=html;
+    }
+    function addCustomHoliday(){
+        var inp=document.getElementById('holidayMgrInput'); if(!inp) return;
+        var d=parseInt(inp.value);
+        if(isNaN(d)||d<1||d>31){alert('1~31 사이 날짜를 입력하세요.');return;}
+        var m=_schedMonth;
+        if(!_schedCustomHolidays[m]) _schedCustomHolidays[m]=[];
+        if(_schedCustomHolidays[m].indexOf(d)>=0){alert('이미 등록된 날짜입니다.');return;}
+        _schedCustomHolidays[m].push(d);
+        _schedCustomHolidays[m].sort(function(a,b){return a-b;});
+        db.ref('work_schedule/custom_holidays/'+_schedYear+'/'+m).set(_schedCustomHolidays[m]);
+        inp.value='';
+        _renderHolidayMgrBody();
+        _renderScheduleTable();
+    }
+    function deleteCustomHoliday(d){
+        var m=_schedMonth;
+        if(!_schedCustomHolidays[m]) return;
+        _schedCustomHolidays[m]=_schedCustomHolidays[m].filter(function(x){return x!==d;});
+        if(_schedCustomHolidays[m].length===0){
+            db.ref('work_schedule/custom_holidays/'+_schedYear+'/'+m).remove();
+            delete _schedCustomHolidays[m];
+        } else {
+            db.ref('work_schedule/custom_holidays/'+_schedYear+'/'+m).set(_schedCustomHolidays[m]);
+        }
+        _renderHolidayMgrBody();
+        _renderScheduleTable();
     }
     function addSchedStaff(gIdx){
         var g = SCHED_GROUPS[gIdx];
@@ -998,7 +1140,7 @@
         var ids = Object.keys(_schedNames[g.key]).map(Number);
         var nextId = ids.length>0 ? Math.max.apply(null,ids)+1 : 0;
         _schedNames[g.key][nextId]='';
-        db.ref('work_schedule/staff/'+g.key+'/'+nextId).set('');
+        db.ref(_staffMonthPath()+'/'+g.key+'/'+nextId).set('');
         _renderScheduleTable();
     }
     function removeSchedStaff(gIdx, staffId){
@@ -1011,7 +1153,7 @@
             if(parseInt(p[0])===gIdx && parseInt(p[1])===staffId) keysToDelete.push(k);
         });
         keysToDelete.forEach(function(k){ delete _schedCells[k]; });
-        db.ref('work_schedule/staff/'+g.key+'/'+staffId).remove();
+        db.ref(_staffMonthPath()+'/'+g.key+'/'+staffId).remove();
         if(keysToDelete.length){
             var upd={};
             keysToDelete.forEach(function(k){
@@ -1082,7 +1224,21 @@
         if(memoText){ dot.style.borderTopColor='#ef4444'; dot.title=memoText; }
         else { dot.style.borderTopColor='rgba(130,130,130,0.13)'; dot.title='메모 추가'; }
     }
-    function _schedDragEnd(){ _schedDragging=false; _schedSelecting=false; }
+    function _schedDragEnd(){ _schedDragging=false; _schedSelecting=false; _schedDragSeen={}; }
+    function _schedDragStart(gIdx, staffId, day){
+        if(!_schedEditMode || !_schedStamp) return;
+        _schedDragSeen={};
+        _schedApplyCell(gIdx, staffId, day); /* 첫 클릭: _schedDragging=false → 토글 허용 */
+        _schedDragging=true; /* 이후 mousemove는 드래그 모드 */
+    }
+    function _schedDragMove(e){
+        if(!_schedDragging || !_schedEditMode || !_schedStamp) return;
+        var el=document.elementFromPoint(e.clientX, e.clientY); if(!el) return;
+        var td=(el.id&&el.id.indexOf('scell_')===0)?el:((el.parentElement&&el.parentElement.id&&el.parentElement.id.indexOf('scell_')===0)?el.parentElement:null);
+        if(!td) return;
+        var parts=td.id.replace('scell_','').split('_'); if(parts.length<3) return;
+        _schedApplyCell(parseInt(parts[0]),parseInt(parts[1]),parseInt(parts[2]));
+    }
     function _colRgba(hex, a){
         var r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);
         return 'rgba('+r+','+g+','+b+','+a+')';
@@ -1147,8 +1303,8 @@
         var SWpct = (staffPxEach / availW * 100).toFixed(2)+'%';
 
         /* ── 행 높이: wrap의 실제 DOM 높이에서 역산 ── */
-        var nameH = 20;          /* 이름 입력행 고정 20px */
-        var theadH = 28 + nameH + 6; /* 그룹헤더(28) + 이름행(20) + 경계선여유(6) = 54 */
+        var nameH = 24;          /* 이름 입력행 고정 24px */
+        var theadH = 28 + nameH + 6; /* 그룹헤더(28) + 이름행(24) + 경계선여유(6) = 58 */
         var wrapH = (wrap && wrap.clientHeight > 80) ? wrap.clientHeight : Math.max(300, window.innerHeight - 145);
         /* border-collapse: 행당 ~1px 경계선 누적(days+6 px) 포함해 역산, 상한 없음 */
         var rowH = Math.max(9, Math.floor((wrapH - theadH - days - 10) / (days + 2)));
@@ -1171,7 +1327,7 @@
         var _today=new Date(); var _todayD=0;
         if(_today.getFullYear()===_schedYear&&_today.getMonth()+1===_schedMonth) _todayD=_today.getDate();
 
-        var html='<table style="border-collapse:collapse;table-layout:fixed;width:100%;font-size:'+cFont+';">';
+        var html='<table style="border-collapse:collapse;table-layout:fixed;width:100%;font-size:'+cFont+';font-weight:700;">';
 
         /* 헤더 1행: 날짜(rowspan=2) + 그룹 레이블 */
         html+='<thead><tr>';
@@ -1195,7 +1351,14 @@
             var ids=gStaff[di];
             var lb=di>0?'border-left:4px solid '+_colRgba(_GCOL[gIdx],0.65)+';':'';
             if(ids.length===0){
-                html+='<td style="'+cs+lb+'width:'+SWpct+';text-align:center;font-size:7.5px;opacity:0.3;background:var(--bg-body);height:'+nameH+'px;vertical-align:middle;">없음</td>';
+                if(_schedEditMode){
+                    var egc=_GCOL[gIdx]||'#888';
+                    html+='<td style="'+cs+lb+'width:'+SWpct+';text-align:center;background:var(--bg-body);height:'+nameH+'px;vertical-align:middle;">';
+                    html+='<button onclick="addSchedStaff('+gIdx+')" style="padding:2px 6px;border-radius:4px;border:1.5px solid '+egc+';background:transparent;color:'+egc+';font-size:8px;font-weight:900;cursor:pointer;white-space:nowrap;">+추가</button>';
+                    html+='</td>';
+                } else {
+                    html+='<td style="'+cs+lb+'width:'+SWpct+';text-align:center;font-size:7.5px;opacity:0.3;background:var(--bg-body);height:'+nameH+'px;vertical-align:middle;">없음</td>';
+                }
             } else {
                 ids.forEach(function(staffId,ci){
                     var lb2=ci===0?lb:'';
@@ -1203,10 +1366,10 @@
                     var cc=(_schedColors[g.key]||{})[staffId]||'';
                     var tdBg=cc?_colRgba(cc,0.15):'var(--bg-card)';
                     var tdTopBdr=cc?'border-top:2.5px solid '+cc+';':'';
-                    html+='<td style="'+cs+lb2+tdTopBdr+'width:'+SWpct+';padding:1px 1px;background:'+tdBg+';height:'+nameH+'px;vertical-align:middle;">';
+                    html+='<td onclick="var i=this.querySelector(\'input\');if(i&&document.activeElement!==i)i.focus()" style="'+cs+lb2+tdTopBdr+'width:'+SWpct+';padding:1px 1px;background:'+tdBg+';height:'+nameH+'px;vertical-align:middle;cursor:text;" title="클릭하여 이름 수정">';
                     html+='<div style="display:flex;align-items:center;width:100%;overflow:hidden;">';
-                    html+='<button onclick="event.stopPropagation();openStaffColorPicker('+gIdx+','+staffId+',event)" style="flex-shrink:0;width:9px;height:9px;border-radius:2px;border:1px solid rgba(0,0,0,0.15);background:'+(cc||'rgba(140,140,140,0.22)')+';cursor:pointer;padding:0;margin-right:1px;" title="열 색상 변경"></button>';
-                    html+='<input type="text" value="'+name.replace(/"/g,'&quot;').replace(/'/g,'&#39;')+'" onblur="_schedSaveName(\''+g.key+'\','+staffId+',this.value)" placeholder="이름" style="flex:1;min-width:0;width:0;height:18px;border:none;background:transparent;color:var(--text-main);font-size:'+inpFont+';font-weight:700;text-align:center;outline:none;padding:0;" />';
+                    html+='<button onclick="event.stopPropagation();openStaffColorPicker('+gIdx+','+staffId+',event)" style="flex-shrink:0;width:12px;height:12px;border-radius:3px;border:1.5px solid '+(cc?cc:'rgba(140,140,140,0.5)')+';background:'+(cc||'rgba(140,140,140,0.18)')+';cursor:pointer;padding:0;margin-right:2px;" title="열 색상 변경"></button>';
+                    html+='<input type="text" value="'+name.replace(/"/g,'&quot;').replace(/'/g,'&#39;')+'" onblur="_schedSaveName(\''+g.key+'\','+staffId+',this.value)" placeholder="이름" style="flex:1;min-width:0;width:0;height:20px;border:none;background:transparent;color:var(--text-main);font-size:'+inpFont+';font-weight:700;text-align:center;outline:none;padding:0;cursor:text;" />';
                     html+='</div></td>';
                 });
             }
@@ -1218,13 +1381,15 @@
         for(var d=1;d<=days;d++){
             var dow=new Date(_schedYear,_schedMonth-1,d).getDay();
             var isSun=dow===0,isSat=dow===6,isToday=(d===_todayD);
-            var dc=isToday?'#78350f':(isSun?'#b91c1c':(isSat?'#1d4ed8':'var(--text-main)'));
-            var dbg=isToday?'rgba(245,158,11,0.60)':(isSun?'rgba(239,68,68,0.25)':(isSat?'rgba(96,165,250,0.25)':'var(--bg-body)'));
+            var isHol=!isSun&&!isSat&&_isKrHoliday(_schedYear,_schedMonth,d);
+            var isRed=isSun||isHol;
+            var dc=isToday?'#166534':(isRed?'#b91c1c':(isSat?'#1d4ed8':'var(--text-main)'));
+            var dbg=isToday?'rgba(34,197,94,0.55)':(isRed?'rgba(239,68,68,0.25)':(isSat?'rgba(96,165,250,0.25)':'var(--bg-body)'));
             var dateInner = rowH < 17
                 ? (d+'<span style="font-size:'+Math.max(7,parseInt(dFont)-1)+'px;opacity:0.85;margin-left:1px;">'+DN[dow]+'</span>')
                 : (d+'<br><span style="font-size:'+Math.max(7,parseInt(dFont)-1)+'px;opacity:0.85;">'+DN[dow]+'</span>');
             html+='<tr>';
-            html+='<td style="'+cs+'width:'+DWpct+';height:'+rowH+'px;text-align:center;padding:0;background:'+dbg+';color:'+dc+';font-weight:900;font-size:'+dFont+';line-height:1.1;vertical-align:middle;white-space:nowrap;'+(isToday?'border-left:4px solid #f59e0b;box-shadow:inset 2px 0 8px rgba(245,158,11,0.18);':'')+(isSun&&!isToday?'border-left:3px solid rgba(239,68,68,0.5);':'')+(isSat&&!isToday?'border-left:3px solid rgba(96,165,250,0.5);':'')+'">'+(isToday?'<b>'+dateInner+'</b>':dateInner)+'</td>';
+            html+='<td style="'+cs+'width:'+DWpct+';height:'+rowH+'px;text-align:center;padding:0;background:'+dbg+';color:'+dc+';font-weight:900;font-size:'+dFont+';line-height:1.1;vertical-align:middle;white-space:nowrap;'+(isToday?'border-left:4px solid #22c55e;box-shadow:inset 2px 0 8px rgba(34,197,94,0.18);':'')+(isRed&&!isToday?'border-left:3px solid rgba(239,68,68,0.5);':'')+(isSat&&!isToday?'border-left:3px solid rgba(96,165,250,0.5);':'')+'">'+(isToday?'<b>'+dateInner+'</b>':dateInner)+'</td>';
             _activeDispGroups.forEach(function(item,di){
                 var g=item.g; var gIdx=item.gIdx;
                 var ids=gStaff[di];
@@ -1237,20 +1402,22 @@
                         var key=_schedCellKey(gIdx,staffId,d);
                         var val=_schedCells[key]||'';
                         var bg='',color='',fw='',txt='';
-                        if(val==='휴무'){bg='rgba(239,68,68,0.2)';color='#ef4444';fw='900';txt='휴무';}
-                        else if(val==='12시'){bg='rgba(59,130,246,0.2)';color='#3b82f6';fw='900';txt='12시';}
-                        else if(val==='17시'){bg='rgba(34,197,94,0.2)';color='#22c55e';fw='900';txt='17시';}
-                        else if(val==='연차'){bg='rgba(139,92,246,0.2)';color='#8b5cf6';fw='900';txt='연차';}
-                        else if(val==='반차'){bg='rgba(249,115,22,0.2)';color='#f97316';fw='900';txt='반차';}
-                        else if(val==='안식'){bg='rgba(20,184,166,0.2)';color='#14b8a6';fw='900';txt='안식';}
-                        else if(val==='9시'){bg='rgba(234,179,8,0.2)';color='#eab308';fw='900';txt='9시';}
-                        else if(val==='15시'){bg='rgba(236,72,153,0.2)';color='#ec4899';fw='900';txt='15시';}
-                        else{var cc3=(_schedColors[g.key]||{})[staffId]||'';bg=cc3?_colRgba(cc3,isToday?0.16:(isSun||isSat?0.10:0.06)):(isToday?'rgba(245,158,11,0.15)':(isSun?'rgba(239,68,68,0.13)':(isSat?'rgba(96,165,250,0.13)':'')));}
+                        var cc3=(_schedColors[g.key]||{})[staffId]||'';
+                        bg=cc3?_colRgba(cc3,isToday?0.16:(isRed||isSat?0.10:0.06)):(isToday?'rgba(34,197,94,0.15)':(isRed?'rgba(239,68,68,0.13)':(isSat?'rgba(96,165,250,0.13)':'')));
+                        if(val==='휴무'){color='#ef4444';fw='900';txt='휴무';}
+                        else if(val==='12시'){color='#d946ef';fw='900';txt='12시';}
+                        else if(val==='17시'){color='#22c55e';fw='900';txt='17시';}
+                        else if(val==='연차'){color='#8b5cf6';fw='900';txt='연차';}
+                        else if(val==='반차'){color='#f97316';fw='900';txt='반차';}
+                        else if(val==='안식'){color='#14b8a6';fw='900';txt='안식';}
+                        else if(val==='9시'){color='#eab308';fw='900';txt='9시';}
+                        else if(val==='15시'){color='#06b6d4';fw='900';txt='15시';}
+                        else if(val==='교육'){color='#f59e0b';fw='900';txt='교육';}
                         var memo=_schedMemos[key]||'';
                         var foldColor=memo?'#ef4444':'rgba(130,130,130,0.13)';
                         var cellTitleAttr=memo?' title="'+memo.replace(/"/g,'&quot;')+'"':'';
                         var cellEv=_schedEditMode
-                            ?'onmousedown="event.preventDefault();_schedDragging=true;_schedApplyCell('+gIdx+','+staffId+','+d+')" onmouseover="if(_schedDragging)_schedApplyCell('+gIdx+','+staffId+','+d+')"'
+                            ?'onmousedown="event.preventDefault();_schedDragStart('+gIdx+','+staffId+','+d+')"'
                             :'onmousedown="event.preventDefault();_schedSelBegin('+gIdx+','+staffId+','+d+')" onmouseover="_schedSelOver('+gIdx+','+staffId+','+d+')"';
                         var cellCursor=_schedEditMode?'pointer':'cell';
                         html+='<td id="scell_'+key+'" '+cellEv+cellTitleAttr+' style="'+cs+lb2+'position:relative;width:'+SWpct+';height:'+rowH+'px;text-align:center;cursor:'+cellCursor+';background:'+bg+';color:'+color+';font-weight:'+fw+';font-size:'+cFont+';transition:background 0.08s;user-select:none;-webkit-user-select:none;white-space:nowrap;"><span id="sval_'+key+'" style="pointer-events:none;">'+txt+'</span><span id="smemo_'+key+'" onclick="event.stopPropagation();openCellMemo(\''+key+'\',event)" onmousedown="event.stopPropagation()" onmouseover="event.stopPropagation()" title="'+(memo||'메모 추가')+'" style="position:absolute;top:0;right:0;width:0;height:0;border-top:7px solid '+foldColor+';border-left:7px solid transparent;cursor:pointer;z-index:2;transition:border-color 0.2s;"></span></td>';
@@ -1304,13 +1471,14 @@
                 } else {
                     ids.forEach(function(staffId,ci){
                         var lb2=ci===0?lb:'';
-                        var hwCnt=0, yCnt=0, bCnt=0, anCnt=0;
+                        var hwCnt=0, yCnt=0, bCnt=0, anCnt=0, edCnt=0;
                         for(var dd=1;dd<=days;dd++){
                             var v=_schedCells[_schedCellKey(gIdx,staffId,dd)]||'';
                             if(v==='휴무') hwCnt++;
                             else if(v==='연차') yCnt++;
                             else if(v==='반차') bCnt++;
                             else if(v==='안식') anCnt++;
+                            else if(v==='교육') edCnt++;
                         }
                         var total = hwCnt + yCnt + bCnt * 0.5 + anCnt;
                         var totalStr = total > 0 ? total+'일' : '—';
@@ -1332,6 +1500,8 @@
         wrap.innerHTML=html;
         document.removeEventListener('mouseup',_schedDragEnd);
         document.addEventListener('mouseup',_schedDragEnd);
+        document.removeEventListener('mousemove',_schedDragMove);
+        document.addEventListener('mousemove',_schedDragMove);
     }
 
     function toggleTicker(){
@@ -2177,7 +2347,7 @@
     }
     function clearChat(){
         document.getElementById('chatBox').innerHTML="";
-        chatHistories[currentMode]="";
+        chatHistories[currentMode+'_manual']="";
     }
     function clearCurrentChat(){
         if(_currentChatTab===2){clearCSChat();}else{clearChat();}
@@ -2195,6 +2365,7 @@
     }
     function clearCSChat(){
         var box=document.getElementById('csChatBox'); if(box)box.innerHTML='';
+        chatHistories[currentMode+'_template']='';
     }
     var _csPendingQ='';
     async function askCS(){
@@ -2382,7 +2553,7 @@
         track.style.animation='';
         var html='';
         items.forEach(function(item,i){
-            html+='<span class="ticker-item" onclick="openViewModal(\''+item.id+'\')">📌 '+escHtml(item.title)+'</span>';
+            html+='<span class="ticker-item" onclick="openUrgentDetail(\''+item.id+'\')">📌 '+escHtml(item.title)+'</span>';
             html+='<span class="ticker-sep">◆</span>';
         });
         track.innerHTML=html;
@@ -2635,7 +2806,7 @@
         for(var c=0;c<headers.length;c++){if(headers[c]==='날짜'||headers[c]==='일'){dateCol=c;break;}}
         /* 날짜 헤더 없으면 첫 셀이 숫자인 데이터행 여부로 판단 */
         if(dateCol<0){for(var r2=staffHdrIdx+1;r2<Math.min(rows.length,staffHdrIdx+5);r2++){if(/^[1-9]\d?$/.test(((rows[r2]||[])[0]||'').trim())){dateCol=0;break;}}}
-        var KNOWN_VAL={휴무:1,연차:1,반차:1,안식:1,'9시':1,'12시':1,'15시':1,'17시':1};
+        var KNOWN_VAL={휴무:1,연차:1,반차:1,안식:1,교육:1,'9시':1,'12시':1,'15시':1,'17시':1};
         /* 테이블 HTML */
         var html='<table style="border-collapse:collapse;font-size:10.5px;white-space:nowrap;width:100%;">';
         rows.forEach(function(row,ri){
@@ -2664,7 +2835,7 @@
                     var gc2=_GCOL[_PASTE_GRP[cell]]||'#888';
                     content='<span style="color:'+gc2+';font-weight:900;">'+cell+'</span>';
                 } else if(isDataRow&&KNOWN_VAL[cell]){
-                    var vc={'휴무':'#ef4444','연차':'#f59e0b','반차':'#f97316','안식':'#8b5cf6','9시':'#eab308','12시':'#3b82f6','15시':'#ec4899','17시':'#22c55e'}[cell]||'#6b7280';
+                    var vc={'휴무':'#ef4444','연차':'#f59e0b','반차':'#f97316','안식':'#8b5cf6','교육':'#f59e0b','9시':'#eab308','12시':'#d946ef','15시':'#06b6d4','17시':'#22c55e'}[cell]||'#6b7280';
                     content='<span style="background:'+vc+'22;color:'+vc+';padding:1px 5px;border-radius:5px;font-weight:900;font-size:9.5px;">'+cell+'</span>';
                 }
                 if(isTimeHdr||isGrpHdr||isStaffHdr)tdStyle+='font-weight:700;';
@@ -2756,9 +2927,9 @@
         var updates={};var statusCnt=0;var clearCnt=0;
         /* 직원 등록: 그룹 전체 오브젝트 교체 (기존 ID 정리됨) */
         Object.keys(staffGroupUpdates).forEach(function(gKey){
-            updates['work_schedule/staff/'+gKey]=staffGroupUpdates[gKey];
+            updates['work_schedule/staff_by_month/'+year+'/'+month+'/'+gKey]=staffGroupUpdates[gKey];
         });
-        var KNOWN={'휴무':1,'연차':1,'반차':1,'안식':1};
+        var KNOWN={'휴무':1,'연차':1,'반차':1,'안식':1,'교육':1,'9시':1,'12시':1,'15시':1,'17시':1};
         for(var r=staffHdrIdx+1;r<rows.length;r++){
             var row=rows[r];
             var day;
@@ -3079,9 +3250,13 @@
     }
 
     function switchMode(newMode){
-        chatHistories[currentMode]=document.getElementById('chatBox').innerHTML;
+        chatHistories[currentMode+'_manual']=document.getElementById('chatBox').innerHTML;
+        var _csBox=document.getElementById('csChatBox');
+        chatHistories[currentMode+'_template']=_csBox?_csBox.innerHTML:'';
         currentMode=newMode;
-        document.getElementById('chatBox').innerHTML=chatHistories[currentMode]||"";
+        document.getElementById('chatBox').innerHTML=chatHistories[currentMode+'_manual']||'';
+        var _csBox2=document.getElementById('csChatBox');
+        if(_csBox2) _csBox2.innerHTML=chatHistories[currentMode+'_template']||'';
         var isMania=newMode==='mania';
         var cColor='var(--'+newMode+'-color)';
         document.documentElement.style.setProperty('--active-focus-color',cColor);
