@@ -1148,12 +1148,16 @@
 
         /* ── 행 높이: wrap의 실제 DOM 높이에서 역산 ── */
         /* footer를 데이터 행과 동일 높이로 → (days+1)로 나눔 = 모든 칸 동일 높이 수학적 보장 */
-        var nameH = 24;          /* 이름 입력행 고정 24px */
-        var theadH = 32 + nameH; /* 날짜헤더(32) + 이름행(24) = 56 */
-        var wrapH = (wrap && wrap.clientHeight > 80) ? wrap.clientHeight : Math.max(380, window.innerHeight - 115);
-        var rowH = Math.max(11, Math.min(19, Math.floor((wrapH - theadH - 2) / (days + 2))));
-        var footH = rowH * 2; /* footer = 데이터 행 2배 높이 */
-        /* 증명: theadH + rowH*days + rowH*2 = theadH + rowH*(days+2) ≤ wrapH-2 < wrapH ✓ */
+        var nameH = 22;          /* 이름 입력행 고정 22px */
+        var theadH = 30 + nameH + 4; /* 그룹헤더(30) + 이름행(22) + 테두리여유(4) = 56 */
+        var wrapH = (wrap && wrap.clientHeight > 80) ? wrap.clientHeight : Math.max(340, window.innerHeight - 135);
+        var rowH = Math.max(10, Math.min(18, Math.floor((wrapH - theadH - 8) / (days + 2))));
+        var footH = rowH * 2;
+        /* 안전 검증: 실제 합계가 wrapH 초과하면 rowH를 줄여서 맞춤 */
+        while(theadH + rowH * days + footH > wrapH - 4 && rowH > 9){
+            rowH--;
+            footH = rowH * 2;
+        }
 
         /* ── 폰트 적응 ── */
         var cFont = rowH < 14 ? '8px' : (rowH < 17 ? '9px' : '11px');
@@ -1171,14 +1175,14 @@
 
         /* 헤더 1행: 날짜(rowspan=2) + 그룹 레이블 */
         html+='<thead><tr>';
-        html+='<th rowspan="2" style="'+cs+'width:'+DWpct+';text-align:center;font-size:'+dFont+';font-weight:900;background:var(--bg-body);vertical-align:middle;height:32px;white-space:nowrap;padding:2px 0;">날짜</th>';
+        html+='<th rowspan="2" style="'+cs+'width:'+DWpct+';text-align:center;font-size:'+dFont+';font-weight:900;background:var(--bg-body);vertical-align:middle;height:30px;white-space:nowrap;padding:2px 0;">날짜</th>';
         _activeDispGroups.forEach(function(item,di){
             var g=item.g; var gIdx=item.gIdx;
             var ids=gStaff[di];
             var span=Math.max(1,ids.length);
             var lb=di>0?'border-left:4px solid '+_colRgba(_GCOL[gIdx],0.65)+';':'';
             var gc=_GCOL[gIdx];
-            html+='<th colspan="'+span+'" style="'+cs+lb+'text-align:center;font-size:9.5px;font-weight:900;color:'+gc+';background:var(--bg-body);padding:2px 3px;height:32px;vertical-align:middle;white-space:nowrap;">';
+            html+='<th colspan="'+span+'" style="'+cs+lb+'text-align:center;font-size:9.5px;font-weight:900;color:'+gc+';background:var(--bg-body);padding:2px 3px;height:30px;vertical-align:middle;white-space:nowrap;">';
             html+=g.label;
             html+='</th>';
         });
