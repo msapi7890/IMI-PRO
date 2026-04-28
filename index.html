@@ -38,7 +38,7 @@
 
         body { font-family: 'Pretendard', sans-serif; background-color: var(--bg-body); color: var(--text-main); height: calc(100vh / 0.9); width: calc(100vw / 0.9); overflow: hidden; display: flex; flex-direction: column; font-size: var(--base-font); transition: all 0.2s ease; zoom: 0.9; }
         header { height: var(--header-h); background-color: var(--bg-card); border-bottom: 2px solid var(--border-ui); display: flex; align-items: center; z-index: 1100; }
-        .h-left { width: var(--sidebar-w); padding: 0 1rem; border-right: 2px solid var(--border-ui); height: 100%; display: flex; align-items: center; }
+        .h-left { width: var(--sidebar-w); padding: 0 1rem; border-right: 2px solid var(--border-ui); height: 100%; display: flex; align-items: center; justify-content: center; }
         .h-center { flex: 1; padding: 0 1.2rem; display: flex; align-items: center; justify-content: space-between; }
         .h-right { width: var(--notice-w); padding: 0 1rem; border-left: 2px solid var(--border-ui); height: 100%; display: flex; align-items: center; justify-content: space-between; }
 
@@ -517,7 +517,7 @@
 
 <header>
     <div class="h-left">
-        <h1 class="text-[17px] font-black italic tracking-tighter">IMI PRO <span class="text-blue-400 not-italic text-[10px] ml-1">v49.0 CLAUDE</span></h1>
+        <h1 style="font-size:18px;font-weight:900;font-style:italic;letter-spacing:0.06em;background:linear-gradient(135deg,#0284c7 0%,#3abff8 50%,#db2777 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;user-select:none;">✦ IMI PRO ✦</h1>
     </div>
     <div class="h-center" style="position:relative; justify-content:flex-start;">
         <div id="syncStatusBadge" onclick="checkAppStatus()" class="px-4 py-1 rounded-lg text-[10px] font-black cursor-pointer uppercase shadow-sm active:scale-95">CLAUDE LIVE</div>
