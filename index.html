@@ -1150,18 +1150,18 @@
         var nameH = 20;          /* 이름 입력행 고정 20px */
         var theadH = 28 + nameH + 6; /* 그룹헤더(28) + 이름행(20) + 경계선여유(6) = 54 */
         var wrapH = (wrap && wrap.clientHeight > 80) ? wrap.clientHeight : Math.max(300, window.innerHeight - 145);
-        /* border-collapse 1px/행 누적(~days px) + 기타 여유 40px */
-        var rowH = Math.max(9, Math.min(14, Math.floor((wrapH - theadH - days - 16) / (days + 2))));
+        /* border-collapse: 행당 ~1px 경계선 누적(days+6 px) 포함해 역산, 상한 없음 */
+        var rowH = Math.max(9, Math.floor((wrapH - theadH - days - 10) / (days + 2)));
         var footH = rowH * 2;
-        /* 최종 안전 검증: 경계선 오버헤드 포함해서 실제 초과 시 rowH 감소 */
+        /* 안전 검증: 초과 시 rowH 감소 */
         while(theadH + rowH * days + footH + days + 4 > wrapH && rowH > 8){
             rowH--;
             footH = rowH * 2;
         }
 
         /* ── 폰트 적응 ── */
-        var cFont = rowH < 12 ? '8px' : (rowH < 14 ? '9px' : '10px');
-        var dFont = '8px';
+        var cFont = rowH < 12 ? '8px' : (rowH < 16 ? '9px' : (rowH < 22 ? '10px' : '11px'));
+        var dFont = rowH < 14 ? '7px' : '8px';
         var swPx = staffPxEach;
         var inpFont = swPx < 36 ? '10px' : '12px';
         var btnPad = swPx < 44 ? '1px 3px' : '1px 6px';
