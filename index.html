@@ -503,7 +503,7 @@
                 <input id="mrGame" class="mon-inp" placeholder="게임명 (예: 로스트아크) — 표시용">
                 <input id="mrUrl" class="mon-inp" placeholder="감시할 URL (아이템매니아 카테고리/검색 페이지 URL)">
                 <div style="display:flex;gap:8px;">
-                    <input id="mrKeyword" class="mon-inp" style="flex:1;" placeholder="감지 키워드 (예: 작업장, 불법)">
+                    <input id="mrKeyword" class="mon-inp" style="flex:1;" placeholder="키워드 (쉼표로 구분, 예: 작업장, 불법, 대리)">
                     <input id="mrMinPrice" class="mon-inp" style="width:130px;flex-shrink:0;" placeholder="최소가격 (원)">
                 </div>
                 <button onclick="addMonitorRule()" style="padding:9px;border-radius:9px;background:var(--active-focus-color);color:#fff;border:none;font-size:12px;font-weight:900;cursor:pointer;transition:0.15s;">✅ 규칙 등록</button>
@@ -3746,9 +3746,12 @@
             if (rowText.trim().length < 10) continue;
             var titleEl = el.querySelector('a[href*="item"], a[href*="view"], a[href*="detail"], td.title a, .title a, td:nth-child(2) a') || el.querySelector('a');
             var title = titleEl ? titleEl.textContent.trim() : '';
-            if (keyword && title.indexOf(keyword) < 0) {
-                if (rowText.indexOf(keyword) < 0) continue;
-                if (!title) title = keyword + ' 포함 물품';
+            var _kws = keyword ? keyword.split(',').map(function(k){return k.trim();}).filter(Boolean) : [];
+            var _hasKw = function(t){ return !_kws.length || _kws.some(function(k){ return t.indexOf(k)>=0; }); };
+            var _hitKw = function(t){ return _kws.find(function(k){ return t.indexOf(k)>=0; })||(_kws[0]||''); };
+            if (_kws.length && !_hasKw(title)) {
+                if (!_hasKw(rowText)) continue;
+                if (!title) title = _hitKw(rowText) + ' 포함 물품';
             }
             if (!title) continue;
             var price = _extractPrice(rowText);
@@ -3762,17 +3765,20 @@
             if (matched.length >= 15) break;
         }
         // fallback: 텍스트에서 키워드 포함 구간 탐색
-        if (!matched.length && keyword) {
+        var _fkws = keyword ? keyword.split(',').map(function(k){return k.trim();}).filter(Boolean) : [];
+        var _fhasKw = function(t){ return _fkws.some(function(k){ return t.indexOf(k)>=0; }); };
+        var _fhitKw = function(t){ return _fkws.find(function(k){ return t.indexOf(k)>=0; })||(_fkws[0]||''); };
+        if (!matched.length && _fkws.length) {
             var sections = html.split(/<tr[^>]*>|<li[^>]*>/i);
             for (var fi=0; fi<sections.length && matched.length<10; fi++) {
                 var sec = sections[fi];
-                if (sec.indexOf(keyword) < 0) continue;
+                if (!_fhasKw(sec)) continue;
                 var plainText = sec.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim();
-                if (plainText.indexOf(keyword) < 0) continue;
+                if (!_fhasKw(plainText)) continue;
                 var price = _extractPrice(plainText);
                 if (minPrice > 0 && price < minPrice) continue;
                 var titleMatch = plainText.match(/([가-힣a-zA-Z0-9\+\-\_\[\]\(\)\s]{5,50})/);
-                matched.push({ title: titleMatch ? titleMatch[1].trim() : keyword+' 포함 물품', price:price, url:'' });
+                matched.push({ title: titleMatch ? titleMatch[1].trim() : _fhitKw(plainText)+' 포함 물품', price:price, url:'' });
             }
         }
         return matched;
