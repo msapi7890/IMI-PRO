@@ -3609,6 +3609,7 @@
                 + '<label style="display:flex;align-items:center;gap:3px;cursor:pointer;font-size:11px;font-weight:900;white-space:nowrap;flex-shrink:0;">'
                 + '<input type="checkbox" onchange="toggleMonitorRule(\''+id+'\',this.checked)" '+(r.enabled?'checked':'')+'>'
                 + '<span style="color:'+(r.enabled?'#22c55e':'#94a3b8')+'">'+(r.enabled?'활성':'비활성')+'</span></label>'
+                + '<button id="montest_'+id+'" onclick="testMonitorRule(\''+id+'\')" style="font-size:11px;padding:2px 8px;border-radius:6px;border:1.5px solid var(--active-focus-color);color:var(--active-focus-color);background:none;cursor:pointer;font-weight:900;white-space:nowrap;transition:0.15s;flex-shrink:0;">🔍 테스트</button>'
                 + '<button onclick="deleteMonitorRule(\''+id+'\')" style="font-size:11px;padding:2px 8px;border-radius:6px;border:1.5px solid #ef4444;color:#ef4444;background:none;cursor:pointer;font-weight:900;white-space:nowrap;transition:0.15s;flex-shrink:0;" onmouseover="this.style.background=\'#ef4444\';this.style.color=\'#fff\'" onmouseout="this.style.background=\'none\';this.style.color=\'#ef4444\'">삭제</button>'
                 + '</div>'
                 + '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:5px;">'
@@ -3623,6 +3624,58 @@
 
     function _esc(s) {
         return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    async function testMonitorRule(id) {
+        var rule = monitorRules[id];
+        if (!rule) return;
+        var btn = document.getElementById('montest_'+id);
+        if (btn) { btn.textContent = '⏳...'; btn.disabled = true; }
+        try {
+            var proxyUrl = 'https://api.allorigins.win/get?disableCache=true&url=' + encodeURIComponent(rule.url);
+            var controller = new AbortController();
+            var timer = setTimeout(function(){ controller.abort(); }, 15000);
+            var res;
+            try { res = await fetch(proxyUrl, { signal: controller.signal }); }
+            finally { clearTimeout(timer); }
+            if (!res || !res.ok) { alert('❌ 페이지 로드 실패\nURL을 다시 확인해주세요.'); return; }
+            var data = await res.json();
+            var html = data.contents || '';
+            if (!html) { alert('❌ 빈 응답\nCORS 프록시 문제이거나 URL이 잘못됐습니다.'); return; }
+
+            // 키워드/가격 조건 없이 먼저 전체 파싱 (몇 개 잡히는지 확인)
+            var allItems = _parseItemmaniaHtml(html, '', 0);
+            var filteredItems = _parseItemmaniaHtml(html, rule.keyword||'', rule.minPrice||0);
+
+            var msg = '🔍 테스트 결과 — '+rule.name+'\n';
+            msg += '─────────────────────\n';
+            msg += '📄 전체 파싱된 물품: '+allItems.length+'개\n';
+            msg += '✅ 조건 일치 물품: '+filteredItems.length+'개\n\n';
+
+            if (allItems.length === 0) {
+                msg += '⚠️ 물품을 하나도 파싱하지 못했습니다.\n';
+                msg += '→ 아이템매니아 페이지 HTML 구조가 예상과 다를 수 있어요.\n';
+                msg += '→ URL이 목록 페이지가 맞는지 확인해주세요.';
+            } else if (filteredItems.length === 0) {
+                msg += '⚠️ 조건에 맞는 물품 없음\n';
+                if (rule.keyword) msg += '→ 키워드 "'+rule.keyword+'"가 현재 1페이지에 없을 수 있습니다.\n';
+                if (rule.minPrice) msg += '→ 최소가격 '+Number(rule.minPrice).toLocaleString()+'원 조건 미충족\n';
+                msg += '\n[ 현재 1페이지 물품 예시 ]\n';
+                allItems.slice(0,3).forEach(function(it,i){
+                    msg += (i+1)+'. '+it.title+(it.price?' ('+it.price.toLocaleString()+'원)':'')+'\n';
+                });
+            } else {
+                msg += '[ 감지된 물품 ]\n';
+                filteredItems.slice(0,5).forEach(function(it,i){
+                    msg += (i+1)+'. '+it.title+(it.price?' ('+it.price.toLocaleString()+'원)':'')+'\n';
+                });
+            }
+            alert(msg);
+        } catch(e) {
+            alert('❌ 오류: '+(e.name==='AbortError'?'시간 초과 (15초)':e.message));
+        } finally {
+            if (btn) { btn.textContent = '🔍 테스트'; btn.disabled = false; }
+        }
     }
 
     function toggleMonitorRule(id, enabled) { db.ref('monitor_rules/'+id+'/enabled').set(enabled); }
