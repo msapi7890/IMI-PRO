@@ -194,6 +194,28 @@
         .memo-float-ta { flex:1; width:100%; border:none; background:transparent; resize:none; font-size:12px; font-weight:500; line-height:1.65; outline:none; font-family:inherit; }
         .memo-float-resize { position:absolute; bottom:3px; right:4px; cursor:se-resize; opacity:0.25; font-size:13px; user-select:none; line-height:1; }
         .memo-float-resize:hover { opacity:0.7; }
+
+        /* ===== 홈페이지 모니터링 ===== */
+        #monitorModal { position:fixed; inset:0; z-index:9600; display:flex; align-items:center; justify-content:center; }
+        #monitorModal.hidden { display:none!important; }
+        .mon-backdrop { position:absolute; inset:0; background:rgba(0,0,0,0.5); }
+        .mon-box { position:relative; background:var(--bg-card); border-radius:18px; border:2px solid var(--border-ui); width:min(96vw,560px); max-height:86vh; display:flex; flex-direction:column; box-shadow:0 8px 40px rgba(0,0,0,0.3); overflow:hidden; }
+        .mon-hdr { padding:16px 20px 14px; border-bottom:2px solid var(--border-ui); display:flex; justify-content:space-between; align-items:center; flex-shrink:0; }
+        .mon-body { flex:1; overflow-y:auto; padding:14px 18px; display:flex; flex-direction:column; gap:12px; }
+        .mon-rule { border:2px solid var(--border-ui); border-radius:12px; padding:11px 14px; transition:border-color 0.15s; margin-bottom:7px; }
+        .mon-rule:hover { border-color:var(--active-focus-color); }
+        .mon-tag { font-size:10px; font-weight:800; padding:2px 7px; border-radius:5px; border:1.5px solid var(--border-ui); opacity:0.7; }
+        .mon-inp { background:var(--input-bg)!important; border:2px solid var(--border-ui)!important; border-radius:9px; padding:7px 11px; font-size:12px; font-weight:600; color:var(--text-main); outline:none; width:100%; font-family:inherit; }
+        .mon-inp:focus { border-color:var(--active-focus-color)!important; }
+        #monitorDot { width:8px; height:8px; border-radius:50%; background:#94a3b8; flex-shrink:0; transition:background 0.3s; }
+        #monitorDot.active { background:#22c55e; animation:monPulse 2s infinite; }
+        #hdrMonDot { width:7px; height:7px; border-radius:50%; background:#94a3b8; flex-shrink:0; transition:background 0.3s; }
+        #hdrMonDot.active { background:#22c55e; animation:monPulse 2s infinite; }
+        @keyframes monPulse { 0%,100%{box-shadow:0 0 0 3px rgba(34,197,94,0.3)} 50%{box-shadow:0 0 0 6px rgba(34,197,94,0.1)} }
+        #monitorAlertFlash { position:fixed; bottom:20px; right:20px; z-index:9700; background:var(--bg-card); border:2.5px solid #ef4444; border-radius:14px; padding:14px 16px; width:min(94vw,340px); box-shadow:0 6px 32px rgba(239,68,68,0.35); }
+        #monitorAlertFlash.hidden { display:none!important; }
+        #chatSection.monitor-border-flash { animation:chatRedFlash 0.65s ease-in-out infinite; }
+        @keyframes chatRedFlash { 0%,100%{box-shadow:inset 0 0 0 4px #ef4444, 0 0 20px rgba(239,68,68,0.45)} 50%{box-shadow:inset 0 0 0 4px transparent, 0 0 0 rgba(239,68,68,0)} }
     </style>
 </head>
 
@@ -445,6 +467,69 @@
     </div>
 </div>
 
+<!-- 모니터링 모달 -->
+<div id="monitorModal" class="hidden">
+    <div class="mon-backdrop" onclick="closeMonitorModal()"></div>
+    <div class="mon-box">
+        <div class="mon-hdr">
+            <div>
+                <div style="font-size:15px;font-weight:900;">👁 홈페이지 자동 모니터링</div>
+                <div style="font-size:10px;opacity:0.45;margin-top:2px;">아이템매니아 금지물품 자동 감시 시스템</div>
+            </div>
+            <button onclick="closeMonitorModal()" style="font-size:22px;opacity:0.3;cursor:pointer;background:none;border:none;color:var(--text-main);line-height:1;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.3">×</button>
+        </div>
+        <div class="mon-body">
+            <!-- 상태 바 -->
+            <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:10px;background:var(--bg-body);border:1.5px solid var(--border-ui);">
+                <div id="monitorDot"></div>
+                <div style="flex:1;font-size:11px;font-weight:800;" id="monitorStatusText">모니터링 중지됨</div>
+                <select id="monIntervalSel" onchange="setMonitorInterval(parseInt(this.value))" style="font-size:11px;font-weight:800;border:1.5px solid var(--border-ui);border-radius:7px;padding:3px 7px;background:var(--bg-card);color:var(--text-main);cursor:pointer;outline:none;">
+                    <option value="3">3분 간격</option>
+                    <option value="5" selected>5분 간격</option>
+                    <option value="10">10분 간격</option>
+                    <option value="30">30분 간격</option>
+                </select>
+                <button id="monitorToggleBtn" onclick="toggleMonitoring()" style="font-size:11px;font-weight:900;padding:5px 14px;border-radius:8px;border:none;color:#fff;cursor:pointer;background:#22c55e;transition:0.15s;white-space:nowrap;">▶ 시작</button>
+            </div>
+            <!-- 감시 규칙 목록 -->
+            <div>
+                <div style="font-size:11px;font-weight:900;opacity:0.5;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.1em;">📋 감시 규칙</div>
+                <div id="monitorRuleList"></div>
+            </div>
+            <!-- 규칙 추가 폼 -->
+            <div style="border:2px dashed var(--border-ui);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:8px;">
+                <div style="font-size:11px;font-weight:900;opacity:0.5;text-transform:uppercase;letter-spacing:0.1em;">➕ 새 감시 규칙 추가 (관리자)</div>
+                <input id="mrName" class="mon-inp" placeholder="규칙 이름 (예: 로아 불법계정 감지)">
+                <input id="mrGame" class="mon-inp" placeholder="게임명 (예: 로스트아크) — 표시용">
+                <input id="mrUrl" class="mon-inp" placeholder="감시할 URL (아이템매니아 카테고리/검색 페이지 URL)">
+                <div style="display:flex;gap:8px;">
+                    <input id="mrKeyword" class="mon-inp" style="flex:1;" placeholder="감지 키워드 (예: 작업장, 불법)">
+                    <input id="mrMinPrice" class="mon-inp" style="width:130px;flex-shrink:0;" placeholder="최소가격 (원)">
+                </div>
+                <button onclick="addMonitorRule()" style="padding:9px;border-radius:9px;background:var(--active-focus-color);color:#fff;border:none;font-size:12px;font-weight:900;cursor:pointer;transition:0.15s;">✅ 규칙 등록</button>
+            </div>
+            <div style="font-size:10px;opacity:0.35;line-height:1.8;padding:0 2px;">
+                💡 아이템매니아에서 감시할 게임·카테고리 페이지를 열고 URL을 복사해 붙여넣으세요.<br>
+                🔑 키워드와 최소가격 모두 설정 시 둘 다 만족하는 물품만 감지합니다.<br>
+                ⏰ 이 페이지가 열려있는 동안만 모니터링이 작동합니다. 감지 시 긴급공지로 자동 등록됩니다.
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 모니터링 인앱 알림 플래시 -->
+<div id="monitorAlertFlash" class="hidden">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+        <span style="font-size:18px;">🚨</span>
+        <div style="flex:1;">
+            <div style="font-size:13px;font-weight:900;color:#ef4444;" id="monitorAlertTitle"></div>
+            <div style="font-size:10px;font-weight:800;opacity:0.6;margin-top:1px;" id="monitorAlertCount"></div>
+        </div>
+        <button onclick="closeMonitorFlash()" style="font-size:20px;opacity:0.35;cursor:pointer;background:none;border:none;color:var(--text-main);line-height:1;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.35">×</button>
+    </div>
+    <div id="monitorAlertItems"></div>
+</div>
+
 <!-- 벨 모달 -->
 <div id="bellModal" class="hidden">
     <div class="bell-backdrop" onclick="closeBellModal()"></div>
@@ -523,6 +608,7 @@
         <div id="syncStatusBadge" onclick="checkAppStatus()" class="px-4 py-1 rounded-lg text-[10px] font-black cursor-pointer uppercase shadow-sm active:scale-95">CLAUDE LIVE</div>
         <div id="liveClock" onclick="openScheduleModal()" title="직원 스케쥴 확인" style="position:absolute;left:50%;transform:translateX(-50%);font-size:11.5px;font-weight:900;opacity:0.65;letter-spacing:0.05em;white-space:nowrap;cursor:pointer;transition:opacity 0.15s;" onmouseover="this.style.opacity=1;this.style.textDecoration='underline'" onmouseout="this.style.opacity=0.65;this.style.textDecoration='none'"></div>
         <div style="margin-left:auto;display:flex;align-items:center;gap:6px;">
+            <button id="monitorBtn" onclick="openMonitorModal()" style="font-size:11px;font-weight:900;border:1.5px solid var(--border-ui);border-radius:8px;padding:0 10px;height:32px;background:none;color:var(--text-main);cursor:pointer;white-space:nowrap;transition:0.15s;display:flex;align-items:center;gap:5px;" onmouseover="this.style.borderColor='var(--active-focus-color)'" onmouseout="this.style.borderColor='var(--border-ui)'"><span id="hdrMonDot"></span>👁 모니터링</button>
             <button id="bellBtn" onclick="openBellModal()" style="position:relative;background:none;border:1.5px solid var(--border-ui);border-radius:8px;cursor:pointer;font-size:16px;padding:5px 10px;height:32px;transition:0.15s;color:var(--text-main);display:flex;align-items:center;" onmouseover="this.style.borderColor='var(--active-focus-color)'" onmouseout="this.style.borderColor='var(--border-ui)'">🔔<span id="bellBadge" class="hidden" style="position:absolute;top:-5px;right:-5px;background:#ef4444;color:#fff;font-size:9px;font-weight:900;border-radius:99px;min-width:16px;height:16px;display:flex;align-items:center;justify-content:center;padding:0 3px;">0</span></button>
             <button onclick="clearCurrentChat()" style="font-size:11px;font-weight:900;border:1.5px solid var(--border-ui);border-radius:8px;padding:0 12px;height:32px;background:none;color:var(--text-main);cursor:pointer;white-space:nowrap;transition:0.15s;display:flex;align-items:center;" onmouseover="this.style.background='#ef4444';this.style.color='#fff';this.style.borderColor='#ef4444'" onmouseout="this.style.background='none';this.style.color='var(--text-main)';this.style.borderColor='var(--border-ui)'">🧹 채팅비우기</button>
         </div>
@@ -572,7 +658,7 @@
         </div>
     </aside>
 
-    <section class="flex-1 flex flex-col relative bg-[var(--bg-chat)]" style="min-height:0;">
+    <section id="chatSection" class="flex-1 flex flex-col relative bg-[var(--bg-chat)]" style="min-height:0;">
         <div class="p-2 border-b-2 border-[var(--border-ui)] flex flex-col gap-2 bg-[var(--bg-chat)]">
             <!-- 채팅방 탭 (링크 대신 탭 전환) -->
             <div id="linkArea" style="display:flex;gap:6px;">
@@ -3432,6 +3518,7 @@
                 else if(!document.getElementById('urgentHistoryModal').classList.contains('hidden'))closeUrgentHistory();
                 else if(!document.getElementById('urgentCreateModal').classList.contains('hidden'))closeUrgentCreateModal();
                 else if(!document.getElementById('bellModal').classList.contains('hidden'))closeBellModal();
+                else if(!document.getElementById('monitorModal').classList.contains('hidden'))closeMonitorModal();
                 // 가장 앞의 플로팅 메모 닫기
                 var topZ=-1, topId=null;
                 _memos.forEach(function(m){
@@ -3485,6 +3572,289 @@
     });
     db.ref('tmpl_mania').on('value',function(s){allTemplates.mania=s.val()||{};});
     db.ref('tmpl_bay').on('value',function(s){allTemplates.bay=s.val()||{};});
+
+    // ===== 홈페이지 자동 모니터링 시스템 =====
+    var monitorRules = {};
+    var _monIntervalId = null;
+    var _monIsActive = false;
+    var _monIntervalMin = 5;
+    var _monSeenItems = {};
+
+    db.ref('monitor_rules').on('value', function(s) {
+        monitorRules = s.val() || {};
+        if (!document.getElementById('monitorModal').classList.contains('hidden')) renderMonitorRules();
+    });
+
+    function openMonitorModal() {
+        renderMonitorRules();
+        updateMonitorStatusDisplay();
+        var saved = localStorage.getItem('mon_interval');
+        if (saved) { _monIntervalMin = parseInt(saved); document.getElementById('monIntervalSel').value = saved; }
+        document.getElementById('monitorModal').classList.remove('hidden');
+    }
+    function closeMonitorModal() { document.getElementById('monitorModal').classList.add('hidden'); }
+
+    function renderMonitorRules() {
+        var list = document.getElementById('monitorRuleList');
+        var entries = Object.entries(monitorRules);
+        if (!entries.length) {
+            list.innerHTML = '<div style="text-align:center;padding:18px 0;opacity:0.35;font-size:12px;font-style:italic;">등록된 감시 규칙이 없습니다</div>';
+            return;
+        }
+        list.innerHTML = entries.map(function(e) {
+            var id = e[0], r = e[1];
+            return '<div class="mon-rule">'
+                + '<div style="display:flex;align-items:center;gap:7px;margin-bottom:6px;">'
+                + '<div style="flex:1;font-size:13px;font-weight:900;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+_esc(r.name)+'</div>'
+                + '<label style="display:flex;align-items:center;gap:3px;cursor:pointer;font-size:11px;font-weight:900;white-space:nowrap;flex-shrink:0;">'
+                + '<input type="checkbox" onchange="toggleMonitorRule(\''+id+'\',this.checked)" '+(r.enabled?'checked':'')+'>'
+                + '<span style="color:'+(r.enabled?'#22c55e':'#94a3b8')+'">'+(r.enabled?'활성':'비활성')+'</span></label>'
+                + '<button onclick="deleteMonitorRule(\''+id+'\')" style="font-size:11px;padding:2px 8px;border-radius:6px;border:1.5px solid #ef4444;color:#ef4444;background:none;cursor:pointer;font-weight:900;white-space:nowrap;transition:0.15s;flex-shrink:0;" onmouseover="this.style.background=\'#ef4444\';this.style.color=\'#fff\'" onmouseout="this.style.background=\'none\';this.style.color=\'#ef4444\'">삭제</button>'
+                + '</div>'
+                + '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:5px;">'
+                + (r.gameLabel ? '<span class="mon-tag">🎮 '+_esc(r.gameLabel)+'</span>' : '')
+                + (r.keyword ? '<span class="mon-tag">🔑 '+_esc(r.keyword)+'</span>' : '')
+                + (r.minPrice ? '<span class="mon-tag">💰 '+Number(r.minPrice).toLocaleString()+'원↑</span>' : '')
+                + '</div>'
+                + '<div style="font-size:9.5px;opacity:0.35;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+_esc(r.url||'')+'</div>'
+                + '</div>';
+        }).join('');
+    }
+
+    function _esc(s) {
+        return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function toggleMonitorRule(id, enabled) { db.ref('monitor_rules/'+id+'/enabled').set(enabled); }
+
+    function deleteMonitorRule(id) {
+        if (!confirm('이 감시 규칙을 삭제하시겠습니까?')) return;
+        var pw = prompt('관리자 비밀번호:');
+        if (pw !== ADMIN_PW) { if (pw) alert('❌ 비밀번호 오류'); return; }
+        db.ref('monitor_rules/'+id).remove();
+    }
+
+    function addMonitorRule() {
+        var name = (document.getElementById('mrName').value||'').trim();
+        var url = (document.getElementById('mrUrl').value||'').trim();
+        var keyword = (document.getElementById('mrKeyword').value||'').trim();
+        var minPriceRaw = (document.getElementById('mrMinPrice').value||'').trim();
+        var gameLabel = (document.getElementById('mrGame').value||'').trim();
+        if (!name) { alert('규칙 이름을 입력하세요.'); return; }
+        if (!url || !/^https?:\/\//.test(url)) { alert('올바른 URL을 입력하세요. (https://...)'); return; }
+        if (!keyword && !minPriceRaw) { alert('키워드 또는 최소가격 중 하나는 입력해야 합니다.'); return; }
+        var pw = prompt('관리자 비밀번호:');
+        if (pw !== ADMIN_PW) { if (pw) alert('❌ 비밀번호 오류'); return; }
+        var minPrice = minPriceRaw ? (parseInt(minPriceRaw.replace(/[^0-9]/g,''))||0) : 0;
+        db.ref('monitor_rules').push({ name:name, url:url, keyword:keyword, minPrice:minPrice, gameLabel:gameLabel, enabled:true, createdAt:Date.now() });
+        ['mrName','mrUrl','mrKeyword','mrMinPrice','mrGame'].forEach(function(i){ document.getElementById(i).value=''; });
+        alert('✅ 감시 규칙이 등록되었습니다!');
+    }
+
+    function toggleMonitoring() { if (_monIsActive) stopMonitoringEngine(); else startMonitoringEngine(); }
+
+    function startMonitoringEngine() {
+        if (_monIntervalId) return;
+        _monIsActive = true;
+        Notification.requestPermission();
+        _doMonitorCheck();
+        _monIntervalId = setInterval(_doMonitorCheck, _monIntervalMin * 60000);
+        updateMonitorStatusDisplay();
+        _updateHdrDot();
+    }
+
+    function stopMonitoringEngine() {
+        clearInterval(_monIntervalId); _monIntervalId = null; _monIsActive = false;
+        updateMonitorStatusDisplay(); _updateHdrDot();
+    }
+
+    function setMonitorInterval(min) {
+        _monIntervalMin = min; localStorage.setItem('mon_interval', min);
+        if (_monIsActive) { stopMonitoringEngine(); startMonitoringEngine(); }
+    }
+
+    function updateMonitorStatusDisplay() {
+        var dot = document.getElementById('monitorDot');
+        var txt = document.getElementById('monitorStatusText');
+        var btn = document.getElementById('monitorToggleBtn');
+        if (!dot||!txt||!btn) return;
+        if (_monIsActive) {
+            dot.classList.add('active');
+            var lc = localStorage.getItem('mon_last_check');
+            txt.textContent = lc ? '마지막 체크: '+new Date(+lc).toLocaleTimeString('ko-KR') : '모니터링 중...';
+            btn.textContent = '⏸ 중지'; btn.style.background = '#ef4444';
+        } else {
+            dot.classList.remove('active');
+            txt.textContent = '모니터링 중지됨';
+            btn.textContent = '▶ 시작'; btn.style.background = '#22c55e';
+        }
+    }
+
+    function _updateHdrDot() {
+        var dot = document.getElementById('hdrMonDot');
+        if (!dot) return;
+        if (_monIsActive) dot.classList.add('active'); else dot.classList.remove('active');
+    }
+
+    async function _doMonitorCheck() {
+        var active = Object.entries(monitorRules).filter(function(e){ return e[1].enabled; });
+        if (!active.length) return;
+        localStorage.setItem('mon_last_check', Date.now().toString());
+        if (!document.getElementById('monitorModal').classList.contains('hidden')) updateMonitorStatusDisplay();
+        for (var i=0; i<active.length; i++) {
+            try { await _checkOneRule(active[i][0], active[i][1]); }
+            catch(e) { console.warn('[MON] Rule error:', active[i][1].name, e); }
+            if (i < active.length-1) await new Promise(function(r){ setTimeout(r,2000); });
+        }
+    }
+
+    async function _checkOneRule(id, rule) {
+        var proxyUrl = 'https://api.allorigins.win/get?disableCache=true&url=' + encodeURIComponent(rule.url);
+        var controller = new AbortController();
+        var timer = setTimeout(function(){ controller.abort(); }, 15000);
+        var res;
+        try { res = await fetch(proxyUrl, { signal: controller.signal }); }
+        finally { clearTimeout(timer); }
+        if (!res || !res.ok) return;
+        var data = await res.json();
+        var html = data.contents || '';
+        if (!html) return;
+
+        var items = _parseItemmaniaHtml(html, rule.keyword||'', rule.minPrice||0);
+        if (!items.length) return;
+        _triggerMonitorAlert(id, rule, items);
+    }
+
+    function _parseItemmaniaHtml(html, keyword, minPrice) {
+        var parser = new DOMParser();
+        var doc = parser.parseFromString(html, 'text/html');
+        var matched = [];
+        var selectors = ['.list_table tbody tr','.item_list tr','.goods_list .item_row','table.list_s tr','.board_list tbody tr','ul.item_list > li','.prd_list .prd_item','.item-list tr','table tr'];
+        var rows = [];
+        for (var si=0; si<selectors.length; si++) {
+            var found = doc.querySelectorAll(selectors[si]);
+            if (found.length > 2) { rows = Array.from(found); break; }
+        }
+        if (!rows.length) {
+            rows = Array.from(doc.querySelectorAll('tr')).filter(function(tr){
+                return tr.textContent.includes('원') && tr.textContent.trim().length > 30;
+            });
+        }
+        for (var ri=0; ri<rows.length; ri++) {
+            var el = rows[ri];
+            var rowText = el.textContent || '';
+            if (rowText.trim().length < 10) continue;
+            var titleEl = el.querySelector('a[href*="item"], a[href*="view"], a[href*="detail"], td.title a, .title a, td:nth-child(2) a') || el.querySelector('a');
+            var title = titleEl ? titleEl.textContent.trim() : '';
+            if (keyword && title.indexOf(keyword) < 0) {
+                if (rowText.indexOf(keyword) < 0) continue;
+                if (!title) title = keyword + ' 포함 물품';
+            }
+            if (!title) continue;
+            var price = _extractPrice(rowText);
+            if (minPrice > 0 && price < minPrice) continue;
+            var href = '';
+            if (titleEl) {
+                href = titleEl.getAttribute('href') || '';
+                if (href && !/^https?:/.test(href)) href = 'https://www.itemmania.com' + (href.charAt(0)==='/'?'':'/') + href;
+            }
+            matched.push({ title:title, price:price, url:href });
+            if (matched.length >= 15) break;
+        }
+        // fallback: 텍스트에서 키워드 포함 구간 탐색
+        if (!matched.length && keyword) {
+            var sections = html.split(/<tr[^>]*>|<li[^>]*>/i);
+            for (var fi=0; fi<sections.length && matched.length<10; fi++) {
+                var sec = sections[fi];
+                if (sec.indexOf(keyword) < 0) continue;
+                var plainText = sec.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim();
+                if (plainText.indexOf(keyword) < 0) continue;
+                var price = _extractPrice(plainText);
+                if (minPrice > 0 && price < minPrice) continue;
+                var titleMatch = plainText.match(/([가-힣a-zA-Z0-9\+\-\_\[\]\(\)\s]{5,50})/);
+                matched.push({ title: titleMatch ? titleMatch[1].trim() : keyword+' 포함 물품', price:price, url:'' });
+            }
+        }
+        return matched;
+    }
+
+    function _extractPrice(text) {
+        var m = text.match(/(\d[\d,]{2,})\s*원/g);
+        if (!m) m = text.match(/\d{4,}/g);
+        if (!m) return 0;
+        var nums = m.map(function(s){ return parseInt(s.replace(/[^0-9]/g,'')); }).filter(function(n){ return n >= 100; });
+        return nums.length ? Math.max.apply(null,nums) : 0;
+    }
+
+    function _triggerMonitorAlert(rule, items) {
+        if (Notification.permission === 'granted') {
+            new Notification('🚨 IMI PRO 모니터링 경고', {
+                body: '['+rule.name+'] '+items.length+'개 물품 감지!\n'+items[0].title,
+                tag: 'monitor_'+rule.name
+            });
+        }
+        // 긴급공지 중복 방지: 같은 규칙은 60초 내 재등록 차단
+        var lines = items.slice(0,5).map(function(it,i){
+            return (i+1)+'. '+it.title+(it.price?' ('+it.price.toLocaleString()+'원)':'');
+        });
+        var content = '🚨 [자동감지] '+rule.name+'\n'
+            +(rule.gameLabel?'게임: '+rule.gameLabel+'\n':'')
+            +(rule.keyword?'키워드: "'+rule.keyword+'"\n':'')
+            +(rule.minPrice?'최소가격: '+Number(rule.minPrice).toLocaleString()+'원 이상\n':'')
+            +'감지된 물품: '+items.length+'개\n\n'
+            +lines.join('\n')
+            +'\n\n🔗 '+rule.url;
+        db.ref('monitor_last_alert/'+id).once('value', function(snap) {
+            var lastAt = snap.val() || 0;
+            if (Date.now() - lastAt >= 60000) {
+                db.ref('urgent_notices').push({ content:content, createdAt:Date.now(), expiresAt:Date.now()+24*60*60*1000, isMonitorAlert:true });
+                db.ref('monitor_last_alert/'+id).set(Date.now());
+            }
+        });
+        // 전체 직원 동기화: Firebase로 플래시 상태 공유
+        db.ref('monitor_flash_state').set({
+            active: true,
+            ruleName: rule.name,
+            itemCount: items.length,
+            itemRows: items.slice(0,3).map(function(it){ return {t:it.title, p:it.price||0, u:it.url||''}; }),
+            at: Date.now()
+        });
+    }
+
+    function closeMonitorFlash() {
+        db.ref('monitor_flash_state/active').set(false);
+    }
+
+    function _showMonitorFlash(s) {
+        document.getElementById('monitorAlertTitle').textContent = '🚨 '+(s.ruleName||'모니터링 경고');
+        document.getElementById('monitorAlertCount').textContent = (s.itemCount||0)+'개 물품 감지됨';
+        document.getElementById('monitorAlertItems').innerHTML = (s.itemRows||[]).map(function(it){
+            return '<div style="padding:5px 0;border-bottom:1px solid var(--border-ui);font-size:12px;">'
+                +'<div style="font-weight:800;">'+_esc(it.t||'')+'</div>'
+                +(it.p?'<div style="color:#ef4444;font-weight:900;font-size:11px;">'+Number(it.p).toLocaleString()+'원</div>':'')
+                +(it.u?'<a href="'+_esc(it.u)+'" target="_blank" style="font-size:10px;color:var(--active-focus-color);font-weight:800;">바로가기 ↗</a>':'')
+                +'</div>';
+        }).join('');
+        document.getElementById('monitorAlertFlash').classList.remove('hidden');
+        document.getElementById('chatSection').classList.add('monitor-border-flash');
+        if (window._monFlashTimer) clearTimeout(window._monFlashTimer);
+        window._monFlashTimer = setTimeout(closeMonitorFlash, 30000);
+    }
+
+    function _hideMonitorFlashLocal() {
+        document.getElementById('monitorAlertFlash').classList.add('hidden');
+        document.getElementById('chatSection').classList.remove('monitor-border-flash');
+        if (window._monFlashTimer) { clearTimeout(window._monFlashTimer); window._monFlashTimer = null; }
+    }
+
+    // Firebase 플래시 상태 실시간 동기화 (전 직원 공유)
+    db.ref('monitor_flash_state').on('value', function(snap) {
+        var s = snap.val();
+        if (!s) return;
+        if (s.active) _showMonitorFlash(s);
+        else _hideMonitorFlashLocal();
+    });
+    // ===== 모니터링 시스템 끝 =====
 
 </script>
 </body>
