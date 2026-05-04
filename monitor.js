@@ -289,8 +289,8 @@ async function testMonitorRule(id) {
         var allItems = [], filteredItems = [], usedProxy = '';
         for (var page=1; page<=maxPages; page++) {
             var html = await _fetchPageHtml(rule.url, page, rule.keyword);
-            var pageAll = _parseItemmaniaHtml(html, '', 0);
-            var pageFilt = _parseItemmaniaHtml(html, rule.keyword||'', rule.minPrice||0);
+            var pageAll = _parseItemmaniaHtml(html, '', 0, rule.url||'');
+            var pageFilt = _parseItemmaniaHtml(html, rule.keyword||'', rule.minPrice||0, rule.url||'');
             allItems = allItems.concat(pageAll);
             filteredItems = filteredItems.concat(pageFilt);
             if (pageAll.length === 0 && page > 1) break;
@@ -383,7 +383,6 @@ function tmFetch(url) {
 function startMonitoringEngine() {
     if (_monIntervalId) return;
     _monIsActive = true;
-    Notification.requestPermission();
     _doMonitorCheck();
     _monIntervalId = setInterval(_doMonitorCheck, _monIntervalMin * 60000);
     updateMonitorStatusDisplay();
@@ -442,9 +441,9 @@ async function _checkOneRule(id, rule) {
     for (var page=1; page<=maxPages; page++) {
         try {
             var html = await _fetchPageHtml(rule.url, page, rule.keyword);
-            var pageItems = _parseItemmaniaHtml(html, rule.keyword||'', rule.minPrice||0);
+            var pageItems = _parseItemmaniaHtml(html, rule.keyword||'', rule.minPrice||0, rule.url||'');
             allItems = allItems.concat(pageItems);
-            var pageAll = _parseItemmaniaHtml(html, '', 0);
+            var pageAll = _parseItemmaniaHtml(html, '', 0, rule.url||'');
             if (pageAll.length === 0 && page > 1) break;
         } catch(e) { console.warn('[MON] page'+page+' error:', e.message); break; }
         if (page < maxPages) await new Promise(function(r){ setTimeout(r,1000); });
@@ -453,7 +452,9 @@ async function _checkOneRule(id, rule) {
     _triggerMonitorAlert(id, rule, allItems);
 }
 
-function _parseItemmaniaHtml(html, keyword, minPrice) {
+function _parseItemmaniaHtml(html, keyword, minPrice, baseUrl) {
+    var origin = '';
+    if (baseUrl) { try { origin = new URL(baseUrl).origin; } catch(e) {} }
     var parser = new DOMParser();
     var doc = parser.parseFromString(html, 'text/html');
     var matched = [];
@@ -488,7 +489,13 @@ function _parseItemmaniaHtml(html, keyword, minPrice) {
         var titleEl = el.querySelector('.item_title, .title, .col_title, td:nth-child(2)');
         var title = titleEl ? (titleEl.innerText || titleEl.textContent || '').trim().replace(/\n/g, ' ') : text.substring(0, 40) + '...';
 
-        matched.push({ title:title, price:price, url:'' });
+        var anchors = el.tagName === 'A' ? [el] : Array.from(el.querySelectorAll('a'));
+        var appA = anchors.find(function(a){ var h=a.getAttribute('href')||''; return h.indexOf('application')>=0; });
+        var anyA = anchors.find(function(a){ var h=a.getAttribute('href')||''; return h && h!=='#' && h.indexOf('javascript')<0; });
+        var rawHref = (appA || anyA) ? ((appA||anyA).getAttribute('href')||'') : '';
+        var itemUrl = rawHref.startsWith('http') ? rawHref : (rawHref.startsWith('/') && origin ? origin + rawHref : '');
+
+        matched.push({ title:title, price:price, url:itemUrl });
         if (matched.length >= 20) break;
     }
     return matched;
@@ -503,12 +510,6 @@ function _extractPrice(text) {
 }
 
 function _triggerMonitorAlert(id, rule, items) {
-    if (Notification.permission === 'granted') {
-        new Notification('🚨 IMI PRO 모니터링 경고', {
-            body: '['+rule.name+'] '+items.length+'개 물품 감지!\n'+items[0].title,
-            tag: 'monitor_'+rule.name
-        });
-    }
     var lines = items.slice(0,5).map(function(it,i){
         return (i+1)+'. '+it.title+(it.price?' ('+it.price.toLocaleString()+'원)':'');
     });
@@ -549,19 +550,6 @@ function _showMonitorFlash(s) {
     }).join('');
     document.getElementById('monitorAlertFlash').classList.remove('hidden');
     document.getElementById('chatSection').classList.add('monitor-border-flash');
-
-    // 시스템 알림 → 다른 창 보고 있어도 우측 하단 팝업으로 표시
-    if (Notification.permission === 'granted') {
-        var firstUrl = s.itemRows && s.itemRows[0] && s.itemRows[0].u ? s.itemRows[0].u : '';
-        var notif = new Notification('🚨 IMI PRO 물품 감지!', {
-            body: '[' + (s.ruleName||'') + '] ' + (s.itemCount||0) + '개 물품 감지됨\n' + (s.itemRows&&s.itemRows[0] ? s.itemRows[0].t : ''),
-            tag: 'imi_monitor_alert',
-            requireInteraction: true
-        });
-        if (firstUrl) {
-            notif.onclick = function() { window.open(firstUrl, '_blank'); };
-        }
-    }
 
     // 전체화면 빨간 오버레이 플래시
     _triggerFullscreenFlash();

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>IMI 물리 검색봇</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { background: #0f172a; }
+body { font-family: 'Segoe UI', sans-serif; color: #cbd5e1; width: 380px; min-height: 200px; padding: 14px; }
+h1 { font-size: 15px; font-weight: 900; color: #3abff8; margin-bottom: 12px; display: flex; align-items: center; gap: 7px; }
+.status-bar { display: flex; align-items: center; gap: 10px; background: #1e293b; border: 2px solid #334155; border-radius: 10px; padding: 10px 14px; margin-bottom: 12px; }
+#statusDot { width: 10px; height: 10px; border-radius: 50%; background: #94a3b8; flex-shrink: 0; transition: 0.3s; }
+#statusDot.active { background: #22c55e; box-shadow: 0 0 8px #22c55e; animation: pulse 1.5s infinite; }
+@keyframes pulse { 0%,100%{box-shadow:0 0 0 3px rgba(34,197,94,0.3)} 50%{box-shadow:0 0 0 7px rgba(34,197,94,0.1)} }
+#statusText { flex: 1; font-size: 12px; font-weight: 800; }
+#toggleBtn { font-size: 12px; font-weight: 900; padding: 6px 16px; border-radius: 7px; border: none; cursor: pointer; background: #22c55e; color: #fff; transition: 0.15s; white-space: nowrap; }
+#toggleBtn.stop { background: #ef4444; }
+.section-title { font-size: 11px; font-weight: 900; opacity: 0.5; margin-bottom: 7px; letter-spacing: 0.05em; text-transform: uppercase; }
+#ruleList { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; max-height: 260px; overflow-y: auto; }
+.rule-card { background: #1e293b; border: 2px solid #334155; border-radius: 9px; padding: 9px 11px; }
+.rule-card.active-rule { border-color: #22c55e; }
+.rule-top { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; }
+.rule-name { flex: 1; font-size: 12px; font-weight: 900; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rule-toggle { width: 14px; height: 14px; cursor: pointer; flex-shrink: 0; }
+.rule-edit { font-size: 10px; font-weight: 900; color: #f59e0b; background: none; border: 1.5px solid #f59e0b; border-radius: 5px; padding: 2px 6px; cursor: pointer; flex-shrink: 0; transition: 0.15s; }
+.rule-edit:hover { background: #f59e0b; color: #fff; }
+.rule-del { font-size: 10px; font-weight: 900; color: #ef4444; background: none; border: 1.5px solid #ef4444; border-radius: 5px; padding: 2px 6px; cursor: pointer; flex-shrink: 0; transition: 0.15s; }
+.rule-del:hover { background: #ef4444; color: #fff; }
+.rule-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+.tag { font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 4px; border: 1.5px solid #334155; opacity: 0.8; }
+.rule-url { font-size: 9px; opacity: 0.3; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.empty-msg { text-align: center; padding: 20px 0; opacity: 0.35; font-size: 11px; font-style: italic; }
+.add-form { background: #1e293b; border: 2px dashed #334155; border-radius: 10px; padding: 11px; }
+.add-form-title { font-size: 11px; font-weight: 900; margin-bottom: 9px; opacity: 0.7; }
+input { width: 100%; background: #0f172a; border: 1.5px solid #334155; border-radius: 7px; padding: 7px 10px; font-size: 11px; font-weight: 700; color: #cbd5e1; outline: none; margin-bottom: 6px; }
+input:focus { border-color: #3abff8; }
+input::placeholder { opacity: 0.4; }
+.row2 { display: flex; gap: 6px; }
+.row2 input { flex: 1; }
+#addBtn { width: 100%; padding: 9px; border-radius: 7px; background: #3abff8; color: #0f172a; border: none; font-size: 12px; font-weight: 900; cursor: pointer; margin-top: 2px; transition: 0.15s; }
+#addBtn:hover { background: #38bdf8; }
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+</style>
+</head>
+<body>
+<h1>🤖 IMI 물리 검색봇</h1>
+
+<div class="status-bar">
+    <div id="statusDot"></div>
+    <div id="statusText">상태 확인 중...</div>
+    <button id="toggleBtn">▶ 전체 시작</button>
+</div>
+
+<div class="section-title">감시 규칙 목록</div>
+<div id="ruleList"><div class="empty-msg">등록된 규칙이 없습니다</div></div>
+
+<div class="add-form">
+    <div class="add-form-title">➕ 새 규칙 추가</div>
+    <input id="inName" placeholder="규칙 이름 (예: 리니지클래식 내용 감시)">
+    <input id="inUrl"  placeholder="아이템매니아 카테고리 URL">
+    <input id="inKw"   placeholder="키워드 (쉼표로 여러개 가능)">
+    <div class="row2">
+        <input id="inMin" type="number" placeholder="최소가격 (원)">
+        <input id="inMax" type="number" placeholder="최대가격 (원)">
+    </div>
+    <div class="row2">
+        <input id="inInterval" type="number" placeholder="재검색 간격 (초, 기본 5)">
+        <input id="inExclude" placeholder="제외 키워드 (쉼표 구분)">
+    </div>
+    <button id="addBtn">✅ 규칙 등록</button>
+</div>
+
+<script src="popup.js"></script>
+</body>
+</html>
