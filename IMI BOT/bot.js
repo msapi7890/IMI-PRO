@@ -154,6 +154,7 @@
             const key = title.substring(0, 20) + '_' + price;
             if (seen.has(key)) return;
             seen.add(key);
+            console.log('[IMI BOT] item:', title.substring(0,30), '| href:', href || '(없음)', '| el.tag:', el.tagName, '| links:', candidates.length);
             items.push({ t: title, p: price, u: href, key: itemKey });
         });
         return items;
