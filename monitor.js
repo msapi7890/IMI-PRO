@@ -1,11 +1,60 @@
 // ===== IMI BOT 상태 대시보드 =====
 var _botStatus = null;
+var _botBridgeConnected = false;
+
+// 확장프로그램 브릿지 연결 감지
+window.addEventListener('message', function(e) {
+    if (!e.data) return;
+    if (e.data.__imiBotConnected) {
+        _botBridgeConnected = true;
+        _updateBotToggleBtn();
+    }
+});
+
+function _sendToBot(msg) {
+    window.postMessage(Object.assign({ __imiBot: true }, msg), '*');
+}
+
+function toggleBotFromWeb() {
+    if (!_botBridgeConnected) return;
+    var btn = document.getElementById('monBotToggleBtn');
+    if (btn) btn.disabled = true;
+    if (_botStatus && _botStatus.active) {
+        _sendToBot({ type: 'STOP_ALL' });
+    } else {
+        _sendToBot({ type: 'START_ALL' });
+    }
+    setTimeout(function() { if (btn) btn.disabled = false; }, 2000);
+}
+
+function _updateBotToggleBtn() {
+    var btn = document.getElementById('monBotToggleBtn');
+    if (!btn) return;
+    var active = _botStatus && _botStatus.active;
+    if (!_botBridgeConnected) {
+        btn.textContent = '확장프로그램 필요';
+        btn.disabled = true;
+        btn.style.background = '#334155';
+        btn.style.color = '#94a3b8';
+    } else if (active) {
+        btn.textContent = '⏸ 봇 중지';
+        btn.disabled = false;
+        btn.style.background = '#ef4444';
+        btn.style.color = '#fff';
+    } else {
+        btn.textContent = '▶ 봇 시작';
+        btn.disabled = false;
+        btn.style.background = '#22c55e';
+        btn.style.color = '#fff';
+    }
+}
 
 // Firebase에서 봇 상태 실시간 구독
 db.ref('bot_status').on('value', function(snap) {
     _botStatus = snap.val();
     _renderBotStatus();
     _updateHdrDot();
+    _updateBotToggleBtn();
 });
 
 function _renderBotStatus() {
