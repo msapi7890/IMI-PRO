@@ -61,7 +61,7 @@ function _makeRef(path,opts){
             self.once(evt,cb);
             var timer=setInterval(function(){
                 _get().then(function(val){cb(_snap(path,_limit(val)));}).catch(function(e){if(errCb)errCb(e);});
-            },30000);
+            },5000);
             _listeners.push({evt:evt,cb:cb,timer:timer});
             return cb;
         },
@@ -93,6 +93,11 @@ function _makeRef(path,opts){
                 var newRef=_makeRef(path+'/'+(r&&r.key?r.key:Date.now()));
                 if(cb)cb(null,newRef);return newRef;
             }).catch(function(e){if(cb)cb(e);});
+        },
+
+        // 자식 키 목록만 반환 (값 없음 — 대용량 경로 shallow 조회용)
+        listKeys:function(){
+            return _post({action:'list',path:path}).catch(function(){ return []; });
         },
 
         limitToLast:function(n){return _makeRef(path,{limitToLast:n});},

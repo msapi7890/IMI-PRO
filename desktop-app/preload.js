@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getVersion:          () => ipcRenderer.invoke('get-version'),
     getExeBuild:         () => ipcRenderer.invoke('get-exe-build'),
     onOpenUpdateNotice:  (cb) => ipcRenderer.on('open-update-notice', cb),
+    onNavMonhw:          (cb) => ipcRenderer.on('nav-monhw', cb),
     installUpdate:       () => ipcRenderer.invoke('install-update'),
     onUpdateStatus:      (cb) => ipcRenderer.on('update-status', (_, data) => cb(data)),
     setMonitorDisabled:  (val) => ipcRenderer.send('set-monitor-disabled', val),
@@ -14,5 +15,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     blinkTitle:          (on, labels) => ipcRenderer.send('blink-title', { on: !!on, labels: Array.isArray(labels) ? labels : (labels ? [labels] : []) }),
     send:                (ch, val) => ipcRenderer.send(ch, val),
     restartApp:          () => ipcRenderer.invoke('restart-app'),
+    claudeAnalyze:       (data) => ipcRenderer.invoke('claude-analyze', data),
+    httpGet:             (url) => ipcRenderer.invoke('http-get', url),
     isElectron: true
 });

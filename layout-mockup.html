@@ -1,0 +1,1132 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IMI PRO — 레이아웃 목업</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+:root {
+    --fs-xs:  14px;   /* 보조/메타 텍스트 */
+    --fs-sm:  20px;   /* 기본 */
+    --fs-md:  26px;   /* 강조/항목명 */
+    --fs-lg:  32px;   /* 섹션 제목 */
+}
+body { font-family:'Segoe UI','Malgun Gothic',sans-serif; font-size:var(--fs-sm); background:#0f172a; color:#e2e8f0; height:100vh; display:flex; flex-direction:column; }
+
+/* ── 네비게이션 ── */
+#topNav {
+    background:#1e293b; border-bottom:1px solid #334155;
+    display:flex; align-items:center; padding:0 16px; height:48px; gap:4px; flex-shrink:0;
+}
+.nav-logo { font-size:var(--fs-md); font-weight:900; font-style:italic; background:linear-gradient(135deg,#0284c7,#3abff8,#db2777); -webkit-background-clip:text; -webkit-text-fill-color:transparent; margin-right:16px; }
+.nav-item { position:relative; height:100%; display:flex; align-items:center; }
+.nav-btn { background:none; border:none; color:#94a3b8; font-size:var(--fs-sm); font-weight:700; padding:0 14px; height:100%; cursor:pointer; display:flex; align-items:center; gap:5px; border-bottom:2px solid transparent; transition:all 0.15s; white-space:nowrap; }
+.nav-btn:hover { color:#e2e8f0; background:rgba(255,255,255,0.05); }
+.nav-btn.active { color:#3abff8; border-bottom-color:#3abff8; }
+.nav-arrow { font-size:var(--fs-xs); opacity:0.6; }
+.dropdown { display:none; position:absolute; top:100%; left:0; background:#1e293b; border:1px solid #334155; border-radius:10px; padding:6px; min-width:160px; box-shadow:0 8px 32px rgba(0,0,0,0.5); z-index:1000; }
+.nav-item:hover .dropdown { display:block; }
+.dropdown-item { display:flex; align-items:center; gap:8px; padding:9px 12px; border-radius:7px; font-size:var(--fs-sm); font-weight:700; color:#94a3b8; cursor:pointer; transition:all 0.1s; white-space:nowrap; }
+.dropdown-item:hover { background:#334155; color:#e2e8f0; }
+.nav-spacer { flex:1; }
+.nav-tools { display:flex; align-items:center; gap:8px; }
+.nav-tool-btn { background:#334155; border:none; color:#94a3b8; border-radius:7px; padding:5px 10px; font-size:var(--fs-xs); font-weight:700; cursor:pointer; }
+.nav-tool-btn:hover { background:#475569; color:#e2e8f0; }
+
+/* ── 긴급공지 ── */
+#ticker { background:#1e1a2e; border-bottom:1px solid #4c1d95; padding:6px 16px; display:flex; align-items:center; gap:10px; flex-shrink:0; overflow:hidden; }
+.ticker-label { background:#7c3aed; color:#fff; font-size:var(--fs-xs); font-weight:900; padding:2px 8px; border-radius:4px; flex-shrink:0; }
+.ticker-wrap { flex:1; overflow:hidden; }
+.ticker-text { font-size:var(--fs-sm); font-weight:600; color:#c4b5fd; white-space:nowrap; display:inline-block; animation:tickerScroll 22s linear infinite; }
+@keyframes tickerScroll { 0%{transform:translateX(100%)} 100%{transform:translateX(-100%)} }
+
+/* ── 콘텐츠 ── */
+#content { flex:1; display:flex; overflow:hidden; }
+.panel { display:none; width:100%; height:100%; flex-direction:column; }
+.panel.active { display:flex; }
+#panel-manual { flex-direction:row; }
+
+/* ── 사이드바 ── */
+.manual-sidebar-wrap {
+    display:flex; flex-direction:column; flex-shrink:0;
+    border-right:1px solid #334155;
+    overflow:hidden; transition:width 0.22s cubic-bezier(.4,0,.2,1);
+}
+.manual-sidebar-wrap.collapsed { width:0 !important; border-right:none; }
+
+/* 모드 전환 */
+.mode-logo-row { display:flex; flex-direction:column; flex-shrink:0; }
+.mode-logo-btn { padding:12px 10px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px; background:#161f2e; border:none; cursor:pointer; transition:all 0.18s; position:relative; }
+.mode-logo-btn:first-child { border-bottom:1px solid #1e2d40; }
+.mode-logo-btn img { height:24px; width:auto; object-fit:contain; max-width:220px; opacity:0.28; filter:grayscale(80%) brightness(0.7); transition:all 0.18s; }
+.mode-badge { font-size:var(--fs-xs); font-weight:800; padding:2px 7px; border-radius:8px; line-height:1; opacity:0; transition:all 0.18s; }
+.mode-logo-btn.mania.active { background:linear-gradient(135deg,#0a1e36,#0e2847); box-shadow:inset 4px 0 0 #0284c7; }
+.mode-logo-btn.mania.active img { opacity:1; filter:drop-shadow(0 0 6px rgba(59,191,248,0.3)); }
+.mode-logo-btn.mania.active .mode-badge { opacity:1; color:#3abff8; background:rgba(2,132,199,0.18); }
+.mode-logo-btn.bay.active { background:linear-gradient(135deg,#1f0a19,#2d0f22); box-shadow:inset 4px 0 0 #db2777; }
+.mode-logo-btn.bay.active img { opacity:1; filter:drop-shadow(0 0 6px rgba(219,39,119,0.35)); }
+.mode-logo-btn.bay.active .mode-badge { opacity:1; color:#f472b6; background:rgba(219,39,119,0.18); }
+.mode-logo-btn:not(.active):hover img { opacity:0.55; filter:grayscale(20%); }
+.mode-logo-btn:not(.active):hover { background:#182030; }
+
+/* 모드 홈페이지/이용약관 행 */
+.mode-links { display:none; gap:5px; padding:4px 8px 6px; background:#0f172a; }
+.mode-links.active { display:flex; }
+.mode-link-btn { flex:1; padding:5px 0; border-radius:6px; font-size:var(--fs-xs); font-weight:700; cursor:pointer; border:none; transition:all 0.12s; white-space:nowrap; }
+.mode-link-btn.mania { background:rgba(2,132,199,0.18); color:#3abff8; }
+.mode-link-btn.mania:hover { background:rgba(2,132,199,0.35); }
+.mode-link-btn.bay { background:rgba(219,39,119,0.18); color:#f472b6; }
+.mode-link-btn.bay:hover { background:rgba(219,39,119,0.35); }
+
+/* 비거래 용어 탭 */
+.nontrade-terms-tab { width:100%; padding:9px 10px; background:#131e2e; border:none; border-top:1px solid #334155; font-size:var(--fs-xs); font-weight:700; color:#64748b; cursor:pointer; transition:all 0.12s; text-align:center; letter-spacing:0.03em; }
+.nontrade-terms-tab:hover { background:#1e2d40; color:#94a3b8; }
+.nontrade-terms-tab.active { background:#1c1508; color:#f59e0b; box-shadow:inset 0 -2px 0 #f59e0b; }
+
+/* 비거래 모드 카테고리/항목 스타일 */
+.cat-btn.nontrade-active { color:#fbbf24; background:#1c1508; border-color:#f59e0b; border-left:3px solid #f59e0b; padding-left:8px; }
+.cat-all-btn.nontrade-active { color:#fbbf24; background:#1c1508; border-color:#f59e0b; }
+.manual-item.nontrade-active { background:#f59e0b; color:#0f172a; }
+.manual-toolbar.nontrade-mode { border-bottom-color:#f59e0b; background:linear-gradient(90deg,#1c1508 0%,#1e293b 60%); }
+.manual-toolbar.nontrade-mode .manual-breadcrumb { color:#fbbf24; }
+.manual-toolbar.nontrade-mode .manual-toolbar-search { border-color:#2e1f00; }
+.manual-toolbar.nontrade-mode .manual-toolbar-search:focus-within { border-color:#f59e0b; box-shadow:0 0 0 3px rgba(245,158,11,0.15); }
+
+/* 2열 내부 */
+.manual-sidebar-inner { flex:1; display:flex; overflow:hidden; border-top:1px solid #334155; }
+
+/* 카테고리 열 */
+.manual-cat-col {
+    width:110px; background:#0f172a; border-right:1px solid #1e2d40;
+    display:flex; flex-direction:column; flex-shrink:0; overflow-y:auto; padding:6px; gap:3px;
+}
+/* 전체 버튼 */
+.cat-all-btn {
+    width:100%; padding:8px 10px; border-radius:7px;
+    background:#1e293b; border:2px solid #334155;
+    font-size:var(--fs-sm); font-weight:900; color:#94a3b8;
+    cursor:pointer; transition:all 0.12s; text-align:center;
+    margin-bottom:4px;
+}
+.cat-all-btn:hover { color:#e2e8f0; border-color:#475569; }
+.cat-all-btn.mania-active { color:#3abff8; background:#0e2540; border-color:#0284c7; }
+.cat-all-btn.bay-active   { color:#f472b6; background:#200a18; border-color:#db2777; }
+
+/* 카테고리 버튼 */
+.cat-btn {
+    width:100%; padding:8px 10px; border-radius:7px;
+    background:#1a2438; border:1px solid #243146;
+    font-size:var(--fs-xs); font-weight:700; color:#4e6079;
+    cursor:pointer; transition:all 0.12s; text-align:center; word-break:keep-all; line-height:1.3;
+}
+.cat-btn:hover { color:#94a3b8; background:#1e2f48; border-color:#2e4160; }
+.cat-btn.mania-active { color:#3abff8; background:#0e2540; border-color:#0284c7; border-left:3px solid #0284c7; padding-left:8px; }
+.cat-btn.bay-active   { color:#f472b6; background:#200a18; border-color:#db2777; border-left:3px solid #db2777; padding-left:8px; }
+
+/* 항목 열 */
+.manual-item-col { width:155px; background:#1a2332; display:flex; flex-direction:column; flex-shrink:0; }
+.manual-item-header { padding:9px 12px; border-bottom:1px solid #334155; font-size:var(--fs-xs); font-weight:900; color:#64748b; letter-spacing:0.04em; flex-shrink:0; }
+.manual-list { flex:1; overflow-y:auto; padding:5px; }
+.manual-item { padding:7px 9px; border-radius:6px; font-size:var(--fs-xs); font-weight:600; color:#94a3b8; cursor:pointer; transition:all 0.1s; word-break:keep-all; }
+.manual-item:hover { background:#334155; color:#e2e8f0; }
+.manual-item.mania-active { background:#0284c7; color:#fff; }
+.manual-item.bay-active   { background:#db2777; color:#fff; }
+
+/* 항목 구분 헤더 (전체 모드일 때 카테고리명) */
+.item-group-label { padding:8px 9px 4px; font-size:var(--fs-xs); font-weight:900; color:#334155; letter-spacing:0.04em; }
+
+/* ── 본문 ── */
+.manual-main { flex:1; display:flex; flex-direction:column; background:#0f172a; min-width:0; }
+.manual-toolbar { padding:8px 14px; border-bottom:2px solid #334155; display:flex; align-items:center; gap:10px; background:#1e293b; flex-shrink:0; transition:border-color 0.2s, background 0.2s; }
+.manual-toolbar.mania-mode { border-bottom-color:#0284c7; background:linear-gradient(90deg,#0e2540 0%,#1e293b 60%); }
+.manual-toolbar.bay-mode   { border-bottom-color:#db2777; background:linear-gradient(90deg,#200a18 0%,#1e293b 60%); }
+.manual-breadcrumb { font-size:var(--fs-sm); font-weight:700; color:#64748b; white-space:nowrap; flex-shrink:0; transition:color 0.2s; }
+.manual-toolbar.mania-mode .manual-breadcrumb { color:#3abff8; }
+.manual-toolbar.bay-mode   .manual-breadcrumb { color:#f472b6; }
+.manual-toolbar.mania-mode .manual-toolbar-search:focus-within { border-color:#0284c7; box-shadow:0 0 0 3px rgba(2,132,199,0.15); }
+.manual-toolbar.bay-mode   .manual-toolbar-search:focus-within { border-color:#db2777; box-shadow:0 0 0 3px rgba(219,39,119,0.15); }
+.manual-toolbar.mania-mode .manual-toolbar-search { border-color:#1e3a5a; }
+.manual-toolbar.bay-mode   .manual-toolbar-search { border-color:#3a1028; }
+.panel-toggle-btn { background:none; border:none; cursor:pointer; color:#475569; border-radius:8px; padding:5px; display:flex; align-items:center; justify-content:center; transition:all 0.15s; flex-shrink:0; }
+.panel-toggle-btn:hover { color:#e2e8f0; background:#334155; }
+.manual-toolbar-search { flex:1; max-width:560px; margin-left:auto; display:flex; align-items:center; background:#0f172a; border:1.5px solid #334155; border-radius:10px; padding:0 14px; gap:8px; }
+.manual-toolbar-search input { flex:1; background:none; border:none; outline:none; color:#e2e8f0; font-size:var(--fs-sm); padding:9px 0; }
+.manual-toolbar-search input::placeholder { color:#475569; }
+.manual-toolbar-search:focus-within { border-color:#0284c7; box-shadow:0 0 0 3px rgba(2,132,199,0.12); }
+.manual-toolbar-search .search-icon { color:#475569; font-size:var(--fs-md); flex-shrink:0; }
+.manual-content { flex:1; overflow-y:auto; }
+.placeholder { color:#334155; font-size:var(--fs-sm); font-weight:700; text-align:center; line-height:2; display:flex; align-items:center; justify-content:center; height:100%; }
+/* 매뉴얼 본문 목업 */
+.mock-content { padding:24px; display:flex; flex-direction:column; gap:16px; max-width:860px; }
+.mock-breadcrumb { font-size:var(--fs-xs); font-weight:700; color:#475569; }
+.mock-section { background:#1e293b; border:1px solid #334155; border-radius:10px; padding:18px 20px; display:flex; flex-direction:column; gap:10px; }
+.mock-section-title { height:14px; background:#334155; border-radius:4px; width:40%; }
+.mock-line { height:10px; background:#243244; border-radius:3px; }
+.mock-line.w-100 { width:100%; }
+.mock-line.w-85  { width:85%; }
+.mock-line.w-70  { width:70%; }
+.mock-line.w-50  { width:50%; }
+.mock-img-block { height:180px; background:#162030; border:1px dashed #334155; border-radius:8px; display:flex; align-items:center; justify-content:center; color:#2d4060; font-size:var(--fs-sm); font-weight:700; letter-spacing:0.05em; }
+.mock-tag-row { display:flex; gap:6px; }
+.mock-tag { height:22px; width:64px; background:#243244; border-radius:5px; }
+.mock-table { display:grid; grid-template-columns:140px 1fr; border:1px solid #243244; border-radius:6px; overflow:hidden; }
+.mock-table-cell { padding:9px 12px; border-bottom:1px solid #1e2d40; }
+.mock-table-cell.label { background:#162030; }
+.mock-table-cell:nth-last-child(-n+2) { border-bottom:none; }
+.mock-cell-line { height:9px; background:#334155; border-radius:3px; width:80%; }
+
+/* ── 공지 패널 ── */
+#panel-notice { flex-direction:row; }
+
+/* 공지 사이드바 */
+.notice-sidebar { display:flex; flex-direction:row; flex-shrink:0; border-right:1px solid #334155; background:#0f172a; }
+.notice-year-col { width:80px; background:#0f172a; border-right:1px solid #1e2d40; display:flex; flex-direction:column; padding:8px 6px; gap:3px; overflow-y:auto; }
+.notice-year-col-header { font-size:var(--fs-xs); font-weight:900; color:#334155; letter-spacing:0.08em; padding:4px 4px 6px; text-align:center; flex-shrink:0; }
+.notice-yr-btn { width:100%; padding:7px 6px; border-radius:7px; background:#1a2438; border:1px solid #243146; font-size:var(--fs-sm); font-weight:800; color:#4e6079; cursor:pointer; transition:all 0.12s; text-align:center; }
+.notice-yr-btn:hover { color:#94a3b8; background:#1e2f48; }
+.notice-yr-btn.active { color:#3abff8; background:#0e2540; border-color:#0284c7; border-left:3px solid #0284c7; }
+.notice-month-col { width:64px; background:#111827; display:flex; flex-direction:column; padding:8px 6px; gap:3px; overflow-y:auto; }
+.notice-month-col-header { font-size:var(--fs-xs); font-weight:900; color:#334155; letter-spacing:0.08em; padding:4px 4px 6px; text-align:center; flex-shrink:0; }
+.notice-mo-btn { width:100%; padding:6px 4px; border-radius:6px; background:#161f2e; border:1px solid #1e2d40; font-size:var(--fs-xs); font-weight:700; color:#4e6079; cursor:pointer; transition:all 0.12s; text-align:center; }
+.notice-mo-btn:hover { color:#94a3b8; background:#1e2f48; }
+.notice-mo-btn.active { color:#3abff8; background:#0e2540; border-color:#0284c7; }
+.notice-mo-btn:disabled { opacity:0.25; cursor:default; }
+
+/* 공지 본문 */
+.notice-main { flex:1; display:flex; flex-direction:column; min-width:0; background:#0f172a; }
+.notice-toolbar { padding:8px 14px; border-bottom:1px solid #334155; display:flex; align-items:center; gap:10px; background:#1e293b; flex-shrink:0; }
+.notice-toolbar-title { font-size:var(--fs-sm); font-weight:900; color:#94a3b8; white-space:nowrap; flex-shrink:0; }
+.notice-toolbar-search { flex:1; max-width:500px; display:flex; align-items:center; background:#0f172a; border:1.5px solid #334155; border-radius:10px; padding:0 14px; gap:8px; }
+.notice-toolbar-search input { flex:1; background:none; border:none; outline:none; color:#e2e8f0; font-size:var(--fs-sm); padding:8px 0; }
+.notice-toolbar-search input::placeholder { color:#475569; }
+.notice-toolbar-search:focus-within { border-color:#0284c7; box-shadow:0 0 0 3px rgba(2,132,199,0.12); }
+.btn-write { background:#0284c7; border:none; color:#fff; border-radius:7px; padding:6px 14px; font-size:var(--fs-xs); font-weight:700; cursor:pointer; margin-left:auto; white-space:nowrap; flex-shrink:0; }
+.btn-write:hover { background:#0369a1; }
+
+.notice-grid { flex:1; overflow-y:auto; padding:16px; display:grid; grid-template-columns:repeat(auto-fill,minmax(400px,1fr)); gap:14px; align-content:start; }
+.n-card { background:#1e293b; border:1px solid #334155; border-radius:14px; padding:20px 22px; cursor:pointer; transition:all 0.15s; display:flex; flex-direction:column; gap:12px; }
+.n-card:hover { border-color:#475569; background:#243147; transform:translateY(-1px); box-shadow:0 6px 24px rgba(0,0,0,0.35); }
+.n-card-top { display:flex; align-items:center; gap:10px; }
+.n-card-badge { font-size:var(--fs-xs); font-weight:900; padding:3px 10px; border-radius:10px; flex-shrink:0; }
+.n-card-badge.mania { background:rgba(2,132,199,0.2); color:#3abff8; border:1px solid rgba(2,132,199,0.35); }
+.n-card-badge.bay   { background:rgba(219,39,119,0.18); color:#f472b6; border:1px solid rgba(219,39,119,0.35); }
+.n-card-date { font-size:var(--fs-xs); color:#475569; font-weight:600; margin-left:auto; }
+.n-card-title { font-size:var(--fs-md); font-weight:800; color:#e2e8f0; line-height:1.5; word-break:keep-all; }
+.n-card-preview { font-size:var(--fs-sm); color:#64748b; line-height:1.8; word-break:keep-all; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+.n-card-author { font-size:var(--fs-xs); color:#475569; font-weight:600; padding-top:4px; border-top:1px solid #1e2d40; }
+.notice-empty { display:flex; align-items:center; justify-content:center; height:100%; color:#334155; font-size:var(--fs-sm); font-weight:700; }
+.n-card.pinned { border-color:rgba(245,158,11,0.45); background:rgba(245,158,11,0.05); }
+.n-card.pinned:hover { border-color:rgba(245,158,11,0.75); background:rgba(245,158,11,0.09); }
+.n-pin-icon { font-size:var(--fs-sm); flex-shrink:0; }
+.notice-section-sep { font-size:var(--fs-xs); font-weight:900; color:#475569; letter-spacing:0.06em; padding:4px 2px 6px; border-bottom:1px solid #1e2d40; margin-bottom:2px; }
+
+/* 공지 모달 */
+.notice-modal-overlay { display:none; position:fixed; inset:0; z-index:2000; background:rgba(0,0,0,0.75); backdrop-filter:blur(4px); align-items:center; justify-content:center; }
+.notice-modal-overlay.open { display:flex; }
+.notice-modal { background:#1e293b; border:1px solid #334155; border-radius:16px; width:680px; max-width:90vw; max-height:80vh; display:flex; flex-direction:column; box-shadow:0 24px 80px rgba(0,0,0,0.6); }
+.notice-modal-header { padding:18px 22px 14px; border-bottom:1px solid #334155; display:flex; align-items:flex-start; gap:12px; flex-shrink:0; }
+.notice-modal-header-left { flex:1; display:flex; flex-direction:column; gap:8px; }
+.notice-modal-title { font-size:var(--fs-md); font-weight:900; color:#e2e8f0; line-height:1.4; }
+.notice-modal-meta { display:flex; align-items:center; gap:8px; font-size:var(--fs-xs); color:#64748b; font-weight:600; }
+.notice-modal-close { background:none; border:none; color:#475569; cursor:pointer; border-radius:8px; padding:4px; display:flex; align-items:center; justify-content:center; transition:all 0.1s; flex-shrink:0; }
+.notice-modal-close:hover { color:#e2e8f0; background:#334155; }
+.notice-modal-body { flex:1; overflow-y:auto; padding:20px 22px; font-size:var(--fs-sm); color:#94a3b8; line-height:1.8; }
+
+.sub-panel { width:100%; height:100%; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:12px; }
+.sub-panel-title { font-size:var(--fs-lg); font-weight:900; color:#334155; }
+.sub-panel-desc { font-size:var(--fs-sm); color:#475569; }
+
+/* ── 모니터링 패널 ── */
+.monitoring-panel { display:flex; flex-direction:column; width:100%; height:100%; }
+.monitoring-toolbar { display:flex; align-items:center; padding:10px 16px; border-bottom:1px solid #334155; background:#1a2438; gap:12px; flex-shrink:0; min-height:52px; }
+.monitoring-title { font-size:var(--fs-md); font-weight:900; color:#e2e8f0; flex-shrink:0; }
+.monitoring-divider { width:1px; height:22px; background:#334155; flex-shrink:0; }
+.monitoring-watch-area { display:flex; align-items:center; gap:6px; flex:1; overflow-x:auto; min-width:0; }
+.monitoring-watch-area::-webkit-scrollbar { height:3px; }
+.mon-watch-label { font-size:var(--fs-xs); color:#475569; font-weight:700; white-space:nowrap; flex-shrink:0; }
+.mon-watch-chip { display:flex; align-items:center; gap:6px; background:#0f172a; border:1.5px solid #334155; border-radius:8px; padding:4px 8px 4px 10px; flex-shrink:0; transition:all 0.12s; cursor:default; }
+.mon-watch-chip:hover { border-color:#475569; background:#182030; }
+.mon-watch-chip-num { font-size:var(--fs-xs); font-weight:900; color:#3abff8; white-space:nowrap; }
+.mon-watch-chip-name { font-size:var(--fs-xs); color:#94a3b8; white-space:nowrap; max-width:120px; overflow:hidden; text-overflow:ellipsis; }
+.mon-watch-chip-x { background:none; border:none; color:#475569; cursor:pointer; font-size:12px; line-height:1; padding:0 2px; border-radius:3px; transition:all 0.1s; }
+.mon-watch-chip-x:hover { color:#ef4444; background:rgba(239,68,68,0.1); }
+.monitoring-last-update { font-size:var(--fs-xs); color:#475569; white-space:nowrap; margin-left:auto; }
+.monitoring-columns { flex:1; display:flex; overflow:hidden; }
+.mon-col { flex:1; display:flex; flex-direction:column; overflow:hidden; border-right:1px solid #334155; }
+.mon-col:last-child { border-right:none; }
+.mon-col-header { padding:12px 14px; border-bottom:1px solid #334155; background:#182030; display:flex; flex-direction:column; gap:8px; flex-shrink:0; }
+.mon-col-title-row { display:flex; align-items:center; gap:8px; }
+.mon-col-title { font-size:var(--fs-sm); font-weight:900; }
+.mon-col-count { font-size:var(--fs-xs); font-weight:900; padding:2px 8px; border-radius:10px; }
+.mon-col-filters { display:flex; gap:6px; }
+.mon-filter-chip { background:none; border:1.5px solid #334155; color:#64748b; font-size:var(--fs-xs); font-weight:700; border-radius:20px; padding:3px 12px; cursor:pointer; transition:all 0.12s; }
+.mon-filter-chip.active-fraud  { border-color:#ef4444; color:#ef4444; background:rgba(239,68,68,0.1); }
+.mon-filter-chip.active-nontrade { border-color:#f59e0b; color:#f59e0b; background:rgba(245,158,11,0.1); }
+.mon-search { display:flex; align-items:center; background:#0f172a; border:1.5px solid #1e2d40; border-radius:8px; padding:0 10px; gap:6px; }
+.mon-search input { flex:1; background:none; border:none; outline:none; color:#e2e8f0; font-size:var(--fs-xs); padding:6px 0; }
+.mon-list { flex:1; overflow-y:auto; padding:10px; display:flex; flex-direction:column; gap:8px; }
+.mon-card { background:#1e293b; border:1px solid #334155; border-left:3px solid #334155; border-radius:10px; padding:12px 14px; display:flex; flex-direction:column; gap:8px; cursor:pointer; transition:all 0.12s; }
+.mon-card:hover { background:#243147; border-color:#475569; }
+.mon-card.fraud-new { border-left-color:#ef4444; }
+.mon-card.nontrade-new { border-left-color:#f59e0b; }
+.mon-card.done-card { opacity:0.5; }
+.mon-card-top { display:flex; align-items:center; gap:6px; }
+.mon-platform { font-size:var(--fs-xs); font-weight:900; padding:2px 7px; border-radius:6px; }
+.mon-platform.mania { background:rgba(2,132,199,0.2); color:#3abff8; }
+.mon-platform.bay   { background:rgba(219,39,119,0.18); color:#f472b6; }
+.mon-game  { font-size:var(--fs-xs); color:#64748b; font-weight:700; }
+.mon-time  { font-size:var(--fs-xs); color:#475569; margin-left:auto; }
+.mon-status { font-size:var(--fs-xs); font-weight:900; padding:2px 7px; border-radius:6px; }
+.mon-status.s-new        { background:rgba(239,68,68,0.15); color:#ef4444; }
+.mon-status.s-processing { background:rgba(251,191,36,0.15); color:#fbbf24; }
+.mon-status.s-done       { background:rgba(34,197,94,0.15);  color:#22c55e; }
+.mon-card-rule    { font-size:var(--fs-sm); font-weight:900; color:#e2e8f0; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.mon-card-count   { font-size:var(--fs-xs); font-weight:900; padding:2px 8px; border-radius:8px; flex-shrink:0; }
+.mon-card-count.fraud-count    { background:rgba(239,68,68,0.15); color:#ef4444; }
+.mon-card-count.nontrade-count { background:rgba(245,158,11,0.15); color:#f59e0b; }
+.mon-item-list    { display:flex; flex-direction:column; gap:4px; }
+.mon-item-row     { display:flex; align-items:baseline; gap:8px; padding:5px 8px; background:#182030; border-radius:6px; }
+.mon-item-tid     { font-size:var(--fs-xs); font-weight:900; color:#6366f1; white-space:nowrap; flex-shrink:0; font-family:monospace; }
+.mon-item-title   { font-size:var(--fs-xs); color:#94a3b8; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.mon-item-price   { font-size:var(--fs-xs); font-weight:700; color:#64748b; white-space:nowrap; flex-shrink:0; }
+.mon-item-more    { font-size:var(--fs-xs); color:#475569; font-weight:700; padding:3px 8px; }
+.mon-card-actions { display:flex; gap:6px; }
+.mon-action-btn { flex:1; padding:5px 0; border-radius:6px; font-size:var(--fs-xs); font-weight:700; border:1.5px solid; cursor:pointer; transition:all 0.1s; background:none; }
+.mon-action-btn.a-ignore  { border-color:#334155; color:#475569; }
+.mon-action-btn.a-ignore:hover { background:#334155; color:#94a3b8; }
+.mon-action-btn.a-view    { border-color:#3b82f6; color:#3b82f6; }
+.mon-action-btn.a-view:hover   { background:rgba(59,130,246,0.12); }
+.mon-action-btn.a-block   { border-color:#ef4444; color:#ef4444; }
+.mon-action-btn.a-block:hover  { background:rgba(239,68,68,0.12); }
+.mon-action-btn.a-done    { border-color:#22c55e; color:#22c55e; }
+.mon-action-btn.a-done:hover   { background:rgba(34,197,94,0.12); }
+
+::-webkit-scrollbar { width:4px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:#334155; border-radius:4px; }
+</style>
+</head>
+<body>
+
+<nav id="topNav">
+    <div class="nav-logo">✦ IMI PRO ✦</div>
+    <div class="nav-item"><button class="nav-btn active" data-nav="notice" onclick="showPanel('notice')">📢 공지</button></div>
+    <div class="nav-item">
+        <button class="nav-btn" data-nav="manual" onclick="showPanel('manual')">📋 매뉴얼 <span class="nav-arrow">▾</span></button>
+        <div class="dropdown">
+            <div class="dropdown-item" onclick="showPanel('manual')">📋 매뉴얼 보기</div>
+            <div class="dropdown-item" onclick="showPanel('manual-files')">🗂️ 파일 관리</div>
+        </div>
+    </div>
+    <div class="nav-item">
+        <button class="nav-btn" data-nav="monitoring" onclick="showPanel('fraud')">📡 모니터링 <span class="nav-arrow">▾</span></button>
+        <div class="dropdown">
+            <div class="dropdown-item" onclick="showPanel('bot')">🤖 봇 설정</div>
+        </div>
+    </div>
+    <div class="nav-item">
+        <button class="nav-btn" data-nav="gameinfo" onclick="showPanel('game-list')">🎮 게임정보 <span class="nav-arrow">▾</span></button>
+        <div class="dropdown">
+            <div class="dropdown-item" onclick="showPanel('game-list')">🗂️ 게임 목록</div>
+            <div class="dropdown-item" onclick="showPanel('game-nontrade')">📦 비거래 기준</div>
+            <div class="dropdown-item" onclick="showPanel('game-event')">🎉 이벤트 정보</div>
+        </div>
+    </div>
+    <div class="nav-item">
+        <button class="nav-btn" data-nav="admin" onclick="showPanel('badword')">⚙️ 관리 <span class="nav-arrow">▾</span></button>
+        <div class="dropdown">
+            <div class="dropdown-item" onclick="showPanel('badword')">🚫 금칙어</div>
+            <div class="dropdown-item" onclick="showPanel('users')">👥 사용자 관리</div>
+            <div class="dropdown-item" onclick="showPanel('settings')">🔧 설정</div>
+        </div>
+    </div>
+    <div class="nav-spacer"></div>
+    <div class="nav-tools">
+        <button class="nav-tool-btn">🔔 알림 3</button>
+        <button class="nav-tool-btn">👤 홍길동</button>
+    </div>
+</nav>
+
+<div id="ticker">
+    <span class="ticker-label">긴급공지</span>
+    <div class="ticker-wrap">
+        <span class="ticker-text">거래 뚝지 필터 시스템 확인완료 등록 재개 부탁드립니다 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 고객상담팀 공지사항입니다 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 아이템매니아 신한은행 일부 가상계좌 충전 일시 오류 — 정상화 완료</span>
+    </div>
+</div>
+
+<div id="content">
+
+    <!-- 매뉴얼 -->
+    <div class="panel" id="panel-manual">
+        <div class="manual-sidebar-wrap" id="sidebarWrap">
+            <!-- 모드 전환 -->
+            <div class="mode-logo-row" id="modeLogoRow">
+                <button class="mode-logo-btn mania active" onclick="setMode('mania',this)">
+                    <img src="https://img1.itemmania.com/images2026/header-logo.png" alt="아이템매니아">
+                </button>
+                <div class="mode-links mania active" id="maniaLinks">
+                    <button class="mode-link-btn mania" onclick="event.stopPropagation()">홈페이지</button>
+                    <button class="mode-link-btn mania" onclick="event.stopPropagation()">이용약관</button>
+                </div>
+                <button class="mode-logo-btn bay" onclick="setMode('bay',this)">
+                    <img src="https://www.itembay.com/resources/image/main_ib4/logo_top.png" alt="아이템베이">
+                </button>
+                <div class="mode-links bay" id="bayLinks">
+                    <button class="mode-link-btn bay" onclick="event.stopPropagation()">홈페이지</button>
+                    <button class="mode-link-btn bay" onclick="event.stopPropagation()">이용약관</button>
+                </div>
+                <button class="nontrade-terms-tab" id="nontradeTermsBtn" onclick="setMode('nontrade',this)">📋 비거래 용어 확인</button>
+            </div>
+            <!-- 카테고리 + 항목 2열 -->
+            <div class="manual-sidebar-inner">
+                <!-- 카테고리 열 -->
+                <div class="manual-cat-col" id="catCol"></div>
+                <!-- 항목 열 -->
+                <div class="manual-item-col">
+                    <div class="manual-item-header" id="catTitle">전체</div>
+                    <div class="manual-list" id="manualItemList"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 본문 -->
+        <div class="manual-main">
+            <div class="manual-toolbar">
+                <button class="panel-toggle-btn" onclick="toggleSidebar()" title="사이드바 접기/펼치기">
+                    <svg id="sidebarToggleIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                        <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/>
+                    </svg>
+                </button>
+                <span class="manual-breadcrumb" id="manualBreadcrumb">항목을 선택하세요</span>
+                <div class="manual-toolbar-search">
+                    <span class="search-icon">🔍</span>
+                    <input type="text" id="manualSearchInput" placeholder="매뉴얼 검색..." oninput="handleSearch(this.value)">
+                </div>
+            </div>
+            <div class="manual-content" id="manualContent">
+                <div class="placeholder">매뉴얼 항목을 선택하세요</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 공지 -->
+    <div class="panel active" id="panel-notice">
+        <div class="notice-sidebar">
+            <div class="notice-year-col" id="noticeYearCol">
+                <div class="notice-year-col-header">년도</div>
+            </div>
+            <div class="notice-month-col" id="noticeMonthCol">
+                <div class="notice-month-col-header">월</div>
+            </div>
+        </div>
+        <div class="notice-main">
+            <div class="notice-toolbar">
+                <span class="notice-toolbar-title" id="noticePeriodLabel">공지</span>
+                <div class="notice-toolbar-search">
+                    <span style="color:#475569;font-size:var(--fs-sm);flex-shrink:0;">🔍</span>
+                    <input type="text" id="noticeSearchInput" placeholder="공지 제목/내용 검색..." oninput="handleNoticeSearch(this.value)">
+                </div>
+                <button class="btn-write">+ 글쓰기</button>
+            </div>
+            <div class="notice-grid" id="noticeGrid"></div>
+        </div>
+    </div>
+
+    <!-- 공지 모달 -->
+    <div class="notice-modal-overlay" id="noticeModalOverlay" onclick="closeNoticeModal(event)">
+        <div class="notice-modal">
+            <div class="notice-modal-header">
+                <div class="notice-modal-header-left">
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <span class="n-card-badge" id="modalBadge">MANIA</span>
+                    </div>
+                    <div class="notice-modal-title" id="modalTitle"></div>
+                    <div class="notice-modal-meta" id="modalMeta"></div>
+                </div>
+                <button class="notice-modal-close" onclick="document.getElementById('noticeModalOverlay').classList.remove('open')">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </div>
+            <div class="notice-modal-body" id="modalBody"></div>
+        </div>
+    </div>
+
+    <div class="panel" id="panel-manual-files">
+        <div class="sub-panel">
+            <div class="sub-panel-title">🗂️ 매뉴얼 파일 관리</div>
+            <div class="sub-panel-desc">매뉴얼 이미지 업로드 / 항목 매핑 관리가 여기 표시됩니다</div>
+        </div>
+    </div>
+
+    <div class="panel" id="panel-game-list" style="flex-direction:column;">
+        <iframe src="https://web-production-60bf5.up.railway.app" style="flex:1;width:100%;border:none;display:block;"></iframe>
+    </div>
+    <div class="panel" id="panel-game-nontrade" style="flex-direction:column;">
+        <iframe src="https://web-production-60bf5.up.railway.app" style="flex:1;width:100%;border:none;display:block;"></iframe>
+    </div>
+    <div class="panel" id="panel-game-event" style="flex-direction:column;">
+        <iframe src="https://web-production-60bf5.up.railway.app" style="flex:1;width:100%;border:none;display:block;"></iframe>
+    </div>
+    <div class="panel" id="panel-nontrade-terms"><div class="sub-panel"><div class="sub-panel-title">📋 비거래 용어 확인</div><div class="sub-panel-desc">비거래 관련 용어 및 AI 분석 기능이 여기 표시됩니다</div></div></div>
+
+    <div class="panel" id="panel-fraud">
+        <div class="monitoring-panel">
+            <div class="monitoring-toolbar">
+                <span class="monitoring-title">📡 모니터링</span>
+                <div class="monitoring-divider"></div>
+                <div class="monitoring-watch-area" id="monWatchArea">
+                    <span class="mon-watch-label">👁 감시중</span>
+                    <div class="mon-watch-chip">
+                        <span class="mon-watch-chip-num">#892341</span>
+                        <span class="mon-watch-chip-name">용암의 숨결 ×200</span>
+                        <button class="mon-watch-chip-x" onclick="this.closest('.mon-watch-chip').remove()">✕</button>
+                    </div>
+                    <div class="mon-watch-chip">
+                        <span class="mon-watch-chip-num">#781029</span>
+                        <span class="mon-watch-chip-name">캐릭터 슬롯 확장권</span>
+                        <button class="mon-watch-chip-x" onclick="this.closest('.mon-watch-chip').remove()">✕</button>
+                    </div>
+                    <div class="mon-watch-chip">
+                        <span class="mon-watch-chip-num">#765432</span>
+                        <span class="mon-watch-chip-name">영혼석 +10 (귀속 해제권)</span>
+                        <button class="mon-watch-chip-x" onclick="this.closest('.mon-watch-chip').remove()">✕</button>
+                    </div>
+                </div>
+                <span class="monitoring-last-update">마지막 갱신: 2026.06.12 14:23:01</span>
+            </div>
+            <div class="monitoring-columns">
+
+                <!-- ── 비거래 감지 ── -->
+                <div class="mon-col">
+                    <div class="mon-col-header">
+                        <div class="mon-col-title-row">
+                            <span class="mon-col-title" style="color:#f59e0b;">📦 비거래 감지</span>
+                            <span class="mon-col-count" style="background:rgba(245,158,11,0.15);color:#f59e0b;">신규 2건</span>
+                        </div>
+                        <div class="mon-col-filters">
+                            <button class="mon-filter-chip active-nontrade">전체</button>
+                            <button class="mon-filter-chip">신규</button>
+                            <button class="mon-filter-chip">처리중</button>
+                            <button class="mon-filter-chip">완료</button>
+                        </div>
+                        <div class="mon-search">
+                            <span style="color:#475569;">🔍</span>
+                            <input placeholder="게임명 / 아이템명 검색...">
+                        </div>
+                    </div>
+                    <div class="mon-list">
+                        <!-- 규칙 1개 = 카드 1개, 내부에 감지된 거래 목록 -->
+                        <div class="mon-card nontrade-new">
+                            <div class="mon-card-top">
+                                <span class="mon-platform bay">BAY</span>
+                                <span class="mon-game">메이플스토리</span>
+                                <span class="mon-time">10분 전</span>
+                                <span class="mon-status s-new">신규</span>
+                                <span class="mon-card-count nontrade-count">3개 감지됨</span>
+                            </div>
+                            <div class="mon-card-rule">규칙: 캐시아이템 직거래 [NT-003]</div>
+                            <div class="mon-item-list">
+                                <div class="mon-item-row">
+                                    <span class="mon-item-tid">#7810 2900</span>
+                                    <span class="mon-item-title">캐릭터 슬롯 확장권</span>
+                                    <span class="mon-item-price">15,000원</span>
+                                </div>
+                                <div class="mon-item-row">
+                                    <span class="mon-item-tid">#7810 2930</span>
+                                    <span class="mon-item-title">펫 알 캡슐 (기간제)</span>
+                                    <span class="mon-item-price">8,000원</span>
+                                </div>
+                                <div class="mon-item-row">
+                                    <span class="mon-item-tid">#7810 2931</span>
+                                    <span class="mon-item-title">코스튬 세트 (캐시)</span>
+                                    <span class="mon-item-price">25,000원</span>
+                                </div>
+                            </div>
+                            <div class="mon-card-actions">
+                                <button class="mon-action-btn a-ignore">무시</button>
+                                <button class="mon-action-btn a-view">전체보기</button>
+                                <button class="mon-action-btn a-block">차단</button>
+                            </div>
+                        </div>
+                        <div class="mon-card nontrade-new">
+                            <div class="mon-card-top">
+                                <span class="mon-platform bay">BAY</span>
+                                <span class="mon-game">로스트아크</span>
+                                <span class="mon-time">27분 전</span>
+                                <span class="mon-status s-new">신규</span>
+                                <span class="mon-card-count nontrade-count">6개 감지됨</span>
+                            </div>
+                            <div class="mon-card-rule">규칙: 제작재료 비거래 [NT-007]</div>
+                            <div class="mon-item-list">
+                                <div class="mon-item-row">
+                                    <span class="mon-item-tid">#8923 4100</span>
+                                    <span class="mon-item-title">용암의 숨결 ×200</span>
+                                    <span class="mon-item-price">120,000원</span>
+                                </div>
+                                <div class="mon-item-row">
+                                    <span class="mon-item-tid">#8923 4101</span>
+                                    <span class="mon-item-title">용암의 숨결 ×500</span>
+                                    <span class="mon-item-price">300,000원</span>
+                                </div>
+                                <div class="mon-item-row">
+                                    <span class="mon-item-tid">#8923 4102</span>
+                                    <span class="mon-item-title">빙하의 정수 ×100</span>
+                                    <span class="mon-item-price">85,000원</span>
+                                </div>
+                                <div class="mon-item-more">+ 3건 더</div>
+                            </div>
+                            <div class="mon-card-actions">
+                                <button class="mon-action-btn a-ignore">무시</button>
+                                <button class="mon-action-btn a-view">전체보기</button>
+                                <button class="mon-action-btn a-block">차단</button>
+                            </div>
+                        </div>
+                        <div class="mon-card done-card">
+                            <div class="mon-card-top">
+                                <span class="mon-platform mania">MANIA</span>
+                                <span class="mon-game">던전앤파이터</span>
+                                <span class="mon-time">2시간 전</span>
+                                <span class="mon-status s-done">완료</span>
+                                <span class="mon-card-count nontrade-count">2개 감지됨</span>
+                            </div>
+                            <div class="mon-card-rule">규칙: 귀속아이템 거래 [NT-001]</div>
+                            <div class="mon-item-list">
+                                <div class="mon-item-row">
+                                    <span class="mon-item-tid">#6432 1000</span>
+                                    <span class="mon-item-title">칭호 아이템 (서버귀속)</span>
+                                    <span class="mon-item-price">50,000원</span>
+                                </div>
+                                <div class="mon-item-row">
+                                    <span class="mon-item-tid">#6432 1001</span>
+                                    <span class="mon-item-title">영혼석 +10 (귀속해제권 포함)</span>
+                                    <span class="mon-item-price">200,000원</span>
+                                </div>
+                            </div>
+                            <div class="mon-card-actions">
+                                <button class="mon-action-btn a-ignore">무시</button>
+                                <button class="mon-action-btn a-view">전체보기</button>
+                                <button class="mon-action-btn a-block">차단</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ── 사기글 감지 ── -->
+                <div class="mon-col">
+                    <div class="mon-col-header">
+                        <div class="mon-col-title-row">
+                            <span class="mon-col-title" style="color:#ef4444;">🚨 사기글 감지</span>
+                            <span class="mon-col-count" style="background:rgba(239,68,68,0.15);color:#ef4444;">신규 2건</span>
+                        </div>
+                        <div class="mon-col-filters">
+                            <button class="mon-filter-chip active-fraud">전체</button>
+                            <button class="mon-filter-chip">신규</button>
+                            <button class="mon-filter-chip">처리중</button>
+                            <button class="mon-filter-chip">완료</button>
+                        </div>
+                        <div class="mon-search">
+                            <span style="color:#475569;">🔍</span>
+                            <input placeholder="게임명 / 규칙명 검색...">
+                        </div>
+                    </div>
+                    <div class="mon-list">
+                        <div class="mon-card fraud-new">
+                            <div class="mon-card-top">
+                                <span class="mon-platform mania">MANIA</span>
+                                <span class="mon-game">리니지M</span>
+                                <span class="mon-time">5분 전</span>
+                                <span class="mon-status s-new">신규</span>
+                                <span class="mon-card-count fraud-count">5개 감지됨</span>
+                            </div>
+                            <div class="mon-card-rule">규칙: 골드 직거래 [FRAUD-001]</div>
+                            <div class="mon-item-list">
+                                <div class="mon-item-row">
+                                    <span class="mon-item-tid">#9012 3400</span>
+                                    <span class="mon-item-title">싸게팝니다 골드 3억 직거래</span>
+                                    <span class="mon-item-price">3,000,000원</span>
+                                </div>
+                                <div class="mon-item-row">
+                                    <span class="mon-item-tid">#9012 3401</span>
+                                    <span class="mon-item-title">골드 1억 긴급처분</span>
+                                    <span class="mon-item-price">980,000원</span>
+                                </div>
+                                <div class="mon-item-row">
+                                    <span class="mon-item-tid">#9012 3402</span>
+                                    <span class="mon-item-title">카톡 직거래 골드 삽니다</span>
+                                    <span class="mon-item-price">협의</span>
+                                </div>
+                                <div class="mon-item-more">+ 2건 더</div>
+                            </div>
+                            <div class="mon-card-actions">
+                                <button class="mon-action-btn a-ignore">무시</button>
+                                <button class="mon-action-btn a-view">전체보기</button>
+                                <button class="mon-action-btn a-done">처리완료</button>
+                            </div>
+                        </div>
+                        <div class="mon-card fraud-new">
+                            <div class="mon-card-top">
+                                <span class="mon-platform bay">BAY</span>
+                                <span class="mon-game">메이플스토리</span>
+                                <span class="mon-time">18분 전</span>
+                                <span class="mon-status s-new">신규</span>
+                                <span class="mon-card-count fraud-count">3개 감지됨</span>
+                            </div>
+                            <div class="mon-card-rule">규칙: 외부결제 유도 [FRAUD-008]</div>
+                            <div class="mon-item-list">
+                                <div class="mon-item-row">
+                                    <span class="mon-item-tid">#7654 3200</span>
+                                    <span class="mon-item-title">[급처] 10억 메소 반값에 팝니다</span>
+                                    <span class="mon-item-price">500,000원</span>
+                                </div>
+                                <div class="mon-item-row">
+                                    <span class="mon-item-tid">#7654 3201</span>
+                                    <span class="mon-item-title">디스코드 DM 환영 메소 팜</span>
+                                    <span class="mon-item-price">350,000원</span>
+                                </div>
+                                <div class="mon-item-row">
+                                    <span class="mon-item-tid">#7654 3202</span>
+                                    <span class="mon-item-title">계좌이체 선불 메소 1억</span>
+                                    <span class="mon-item-price">800,000원</span>
+                                </div>
+                            </div>
+                            <div class="mon-card-actions">
+                                <button class="mon-action-btn a-ignore">무시</button>
+                                <button class="mon-action-btn a-view">전체보기</button>
+                                <button class="mon-action-btn a-done">처리완료</button>
+                            </div>
+                        </div>
+                        <div class="mon-card done-card">
+                            <div class="mon-card-top">
+                                <span class="mon-platform mania">MANIA</span>
+                                <span class="mon-game">로스트아크</span>
+                                <span class="mon-time">1시간 전</span>
+                                <span class="mon-status s-done">완료</span>
+                                <span class="mon-card-count fraud-count">4개 감지됨</span>
+                            </div>
+                            <div class="mon-card-rule">규칙: 계정 거래 [FRAUD-002]</div>
+                            <div class="mon-item-list">
+                                <div class="mon-item-row">
+                                    <span class="mon-item-tid">#6543 2100</span>
+                                    <span class="mon-item-title">계정 팝니다 최상위 스펙</span>
+                                    <span class="mon-item-price">1,200,000원</span>
+                                </div>
+                                <div class="mon-item-row">
+                                    <span class="mon-item-tid">#6543 2101</span>
+                                    <span class="mon-item-title">레이드 풀클리어 계정 양도</span>
+                                    <span class="mon-item-price">800,000원</span>
+                                </div>
+                                <div class="mon-item-more">+ 2건 더</div>
+                            </div>
+                            <div class="mon-card-actions">
+                                <button class="mon-action-btn a-ignore">무시</button>
+                                <button class="mon-action-btn a-view">전체보기</button>
+                                <button class="mon-action-btn a-done">처리완료</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+    <div class="panel" id="panel-nontrade"><div class="sub-panel"><div class="sub-panel-title">📋 비거래 관리</div><div class="sub-panel-desc">비거래 거래번호 관리 기능이 여기 표시됩니다</div></div></div>
+    <div class="panel" id="panel-bot"><div class="sub-panel"><div class="sub-panel-title">🤖 봇 설정</div><div class="sub-panel-desc">봇 관련 설정이 여기 표시됩니다</div></div></div>
+    <div class="panel" id="panel-badword"><div class="sub-panel"><div class="sub-panel-title">🚫 금칙어 관리</div><div class="sub-panel-desc">금칙어 설정이 여기 표시됩니다</div></div></div>
+    <div class="panel" id="panel-users"><div class="sub-panel"><div class="sub-panel-title">👥 사용자 관리</div><div class="sub-panel-desc">사용자 권한 관리가 여기 표시됩니다</div></div></div>
+    <div class="panel" id="panel-settings"><div class="sub-panel"><div class="sub-panel-title">🔧 설정</div><div class="sub-panel-desc">시스템 설정이 여기 표시됩니다</div></div></div>
+</div>
+
+<script>
+const MANIA_CATS = [
+    { label:'일반',        items:['거래 방법 안내','회원가입 / 탈퇴','계정 관리','닉네임 변경','1:1 문의 방법','ID 찾기 / 비밀번호'] },
+    { label:'충전',        items:['포인트 충전 방법','가상계좌 충전','카드 충전','휴대폰 충전','충전 오류 처리'] },
+    { label:'결제',        items:['결제 방법','결제 취소','환불 처리','세금계산서','마일리지 사용'] },
+    { label:'사고',        items:['거래 분쟁 신고','사기 신고','계정 도용','이상 거래 감지','거래사고 처리'] },
+    { label:'이벤트',      items:['진행중 이벤트','이벤트 당첨 확인','쿠폰 사용','포인트 이벤트','제휴 이벤트'] },
+    { label:'관리자페이지',items:['관리자 로그인','회원 관리','거래 내역 조회','통계 / 리포트','시스템 설정'] },
+];
+const BAY_CATS = [
+    { label:'회원가입/탈퇴',   items:['회원가입 방법','탈퇴 방법','SNS 계정 연동','탈퇴 후 재가입'] },
+    { label:'판매',            items:['판매 등록','판매 수정/삭제','판매 완료 처리','판매 수수료 안내'] },
+    { label:'구매',            items:['구매 방법','구매 확정','구매 취소 요청','미수령 처리'] },
+    { label:'결제',            items:['결제 방법','결제 취소','환불 처리','세금계산서'] },
+    { label:'마일리지충전',    items:['충전 방법','가상계좌','카드 충전','충전 오류'] },
+    { label:'마일리지 출금',   items:['출금 신청','출금 한도','세금 처리','출금 오류'] },
+    { label:'거래 안내',       items:['거래 프로세스','안전 거래 가이드','직거래 유의사항','분쟁 예방'] },
+    { label:'회원등급/인증',   items:['등급 안내','등급 조건','인증센터','본인인증'] },
+    { label:'보안서비스',      items:['보안 서비스 안내','2차 인증','계정 잠금 해제','보안 설정'] },
+    { label:'부가서비스',      items:['부가 서비스 안내','광고 상품','프리미엄 회원','알림 서비스'] },
+    { label:'기타',            items:['공지사항','고객센터 이용','앱 이용 방법','FAQ'] },
+    { label:'베이만의서비스',  items:['베이 전용 서비스','이벤트 혜택','제휴 서비스','VIP 혜택'] },
+    { label:'거래신고/취소',   items:['거래 신고','취소 요청','거래 종료','신고 처리 현황'] },
+    { label:'거래사고/비거래', items:['거래사고 처리','비관련 상품','거래 분쟁','사고 신고 방법'] },
+];
+
+
+const NONTRADE_CATS = [
+    { label:'게임물위',     items:['게임물관리위원회 기준','비거래 대상 아이템','신고 처리 방법','위반 사례'] },
+    { label:'매니아 기준',  items:['비거래 판별 기준','아이템 등급 분류','거래 가능 여부','예외 처리'] },
+    { label:'베이 기준',    items:['베이 비거래 정책','금지 아이템 목록','분쟁 처리 기준','신고 방법'] },
+    { label:'법률/규정',    items:['게임산업진흥법','전자상거래법','개인정보 보호','분쟁 해결 절차'] },
+    { label:'용어 사전',    items:['비거래 정의','사이버머니','아이템 거래','계정 거래'] },
+    { label:'사례 모음',    items:['처리 완료 사례','경고 처리 사례','제재 사례','특이 케이스'] },
+];
+
+let _currentMode  = 'mania';
+let _selectedCat  = 'all';
+
+const _panelNavMap = { manual:'manual', 'manual-files':'manual', notice:'notice', fraud:'monitoring', nontrade:'monitoring', bot:'monitoring', 'game-list':'gameinfo', 'game-nontrade':'gameinfo', 'game-event':'gameinfo', 'nontrade-terms':'manual', badword:'admin', users:'admin', settings:'admin' };
+
+function showPanel(id) {
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    document.getElementById('panel-' + id).classList.add('active');
+    const navKey = _panelNavMap[id] || id;
+    document.querySelectorAll('.nav-btn[data-nav]').forEach(b => {
+        b.classList.toggle('active', b.dataset.nav === navKey);
+    });
+}
+
+function setMode(mode, btn) {
+    _currentMode = mode;
+    _selectedCat = 'all';
+    // 모드 버튼 active: mania/bay만 mode-logo-btn, nontrade는 nontrade-terms-tab
+    document.querySelectorAll('.mode-logo-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('nontradeTermsBtn').classList.remove('active');
+    btn.classList.add('active');
+    const toolbar = document.querySelector('.manual-toolbar');
+    toolbar.classList.toggle('mania-mode',    mode === 'mania');
+    toolbar.classList.toggle('bay-mode',      mode === 'bay');
+    toolbar.classList.toggle('nontrade-mode', mode === 'nontrade');
+    document.getElementById('maniaLinks').classList.toggle('active', mode === 'mania');
+    document.getElementById('bayLinks').classList.toggle('active',   mode === 'bay');
+    document.getElementById('manualSearchInput').value = '';
+    renderCatCol();
+    renderItemList('all');
+    document.getElementById('manualContent').innerHTML = '<div class="placeholder">매뉴얼 항목을 선택하세요</div>';
+    document.getElementById('manualBreadcrumb').textContent = '항목을 선택하세요';
+}
+
+function renderCatCol() {
+    const cats = _currentMode === 'mania' ? MANIA_CATS : _currentMode === 'bay' ? BAY_CATS : NONTRADE_CATS;
+    const activeClass = _currentMode === 'mania' ? 'mania-active' : _currentMode === 'bay' ? 'bay-active' : 'nontrade-active';
+    const col = document.getElementById('catCol');
+
+    let html = `<button class="cat-all-btn${_selectedCat==='all'?' '+activeClass:''}" onclick="selectCat('all',this)">전체</button>`;
+    html += cats.map((c, i) =>
+        `<button class="cat-btn${_selectedCat===i?' '+activeClass:''}" onclick="selectCat(${i},this)">${c.label}</button>`
+    ).join('');
+    col.innerHTML = html;
+}
+
+function selectCat(idx, btn) {
+    _selectedCat = idx;
+    renderCatCol();
+    renderItemList(idx);
+}
+
+function renderItemList(catIdx, searchResults) {
+    const cats = _currentMode === 'mania' ? MANIA_CATS : _currentMode === 'bay' ? BAY_CATS : NONTRADE_CATS;
+    const activeClass = _currentMode === 'mania' ? 'mania-active' : _currentMode === 'bay' ? 'bay-active' : 'nontrade-active';
+    const list = document.getElementById('manualItemList');
+    const title = document.getElementById('catTitle');
+
+    if (searchResults) {
+        // 검색 결과: 카테고리 구분 레이블 포함
+        title.textContent = '검색 결과';
+        let html = '';
+        searchResults.forEach(c => {
+            html += `<div class="item-group-label">${c.label}</div>`;
+            html += c.items.map(item =>
+                `<div class="manual-item" onclick="selectItem(this,'${c.label}','${item}')">${item}</div>`
+            ).join('');
+        });
+        list.innerHTML = html || '<div style="padding:10px;font-size:var(--fs-xs);color:#475569;text-align:center;">결과 없음</div>';
+        return;
+    }
+
+    if (catIdx === 'all') {
+        title.textContent = '전체';
+        let html = '';
+        cats.forEach(c => {
+            html += `<div class="item-group-label">${c.label}</div>`;
+            html += c.items.map(item =>
+                `<div class="manual-item" onclick="selectItem(this,'${c.label}','${item}')">${item}</div>`
+            ).join('');
+        });
+        list.innerHTML = html;
+    } else {
+        const c = cats[catIdx];
+        title.textContent = c.label;
+        list.innerHTML = c.items.map(item =>
+            `<div class="manual-item" onclick="selectItem(this,'${c.label}','${item}')">${item}</div>`
+        ).join('');
+    }
+}
+
+function selectItem(el, catLabel, itemName) {
+    const activeClass = _currentMode === 'mania' ? 'mania-active' : _currentMode === 'bay' ? 'bay-active' : 'nontrade-active';
+    document.querySelectorAll('.manual-item').forEach(i => i.classList.remove('mania-active','bay-active'));
+    el.classList.add(activeClass);
+    document.getElementById('manualBreadcrumb').textContent = catLabel + '  >  ' + itemName;
+
+    document.getElementById('manualContent').innerHTML = `
+        <div class="mock-content">
+            <div class="mock-breadcrumb">${catLabel}  &gt;  ${itemName}</div>
+            <div class="mock-section">
+                <div class="mock-section-title"></div>
+                <div class="mock-line w-100"></div>
+                <div class="mock-line w-85"></div>
+                <div class="mock-line w-70"></div>
+                <div class="mock-img-block">이미지 영역</div>
+                <div class="mock-line w-100"></div>
+                <div class="mock-line w-50"></div>
+            </div>
+            <div class="mock-section">
+                <div class="mock-section-title"></div>
+                <div class="mock-table">
+                    <div class="mock-table-cell label"><div class="mock-cell-line"></div></div>
+                    <div class="mock-table-cell"><div class="mock-cell-line"></div></div>
+                    <div class="mock-table-cell label"><div class="mock-cell-line"></div></div>
+                    <div class="mock-table-cell"><div class="mock-cell-line" style="width:60%"></div></div>
+                    <div class="mock-table-cell label"><div class="mock-cell-line"></div></div>
+                    <div class="mock-table-cell"><div class="mock-cell-line" style="width:90%"></div></div>
+                </div>
+            </div>
+            <div class="mock-section">
+                <div class="mock-section-title"></div>
+                <div class="mock-tag-row">
+                    <div class="mock-tag"></div><div class="mock-tag"></div><div class="mock-tag"></div>
+                </div>
+                <div class="mock-line w-100"></div>
+                <div class="mock-line w-85"></div>
+                <div class="mock-img-block" style="height:120px">이미지 영역</div>
+                <div class="mock-line w-70"></div>
+            </div>
+        </div>`;
+}
+
+function handleSearch(q) {
+    const cats = _currentMode === 'mania' ? MANIA_CATS : _currentMode === 'bay' ? BAY_CATS : NONTRADE_CATS;
+    if (!q.trim()) {
+        renderCatCol();
+        renderItemList(_selectedCat);
+        return;
+    }
+    const filtered = cats.map(c => ({
+        label: c.label,
+        items: c.items.filter(item => item.includes(q) || c.label.includes(q))
+    })).filter(c => c.items.length > 0);
+
+    renderItemList(null, filtered.length ? filtered : []);
+}
+
+function toggleSidebar() {
+    const wrap = document.getElementById('sidebarWrap');
+    const icon = document.getElementById('sidebarToggleIcon');
+    const collapsed = wrap.classList.toggle('collapsed');
+    icon.innerHTML = collapsed
+        ? '<rect x="3" y="3" width="18" height="18" rx="2"/><line x1="15" y1="3" x2="15" y2="21"/>'
+        : '<rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/>';
+}
+
+// 초기화
+document.querySelector('.manual-toolbar').classList.add('mania-mode');
+renderCatCol();
+renderItemList('all');
+
+/* ────────────────────────────────
+   공지 데이터 & 로직
+──────────────────────────────── */
+const NOTICES = [
+    // 2026년 6월
+    { id:1,  title:'사기사이트 접수건 처리 변경되어 전달드립니다', date:'2026-06-02', author:'백휘섭', site:'MANIA', pinned:true, content:'안녕하세요. 사기사이트 관련 접수건 처리 방식이 변경되어 안내드립니다.\n\n기존에는 1:1 문의로 접수 후 수동 처리하였으나, 금일부터 전용 접수 폼을 통해 처리되오니 업무 참고 부탁드립니다.\n\n변경 사항에 따른 별도 교육은 다음 주 진행 예정입니다.' },
+    { id:2,  title:'[업무협조] 라살라스 API 연동 거래 서비스 안내', date:'2026-06-11', author:'백휘섭', site:'BAY', pinned:true, content:'아이템베이 측 라살라스 API 연동 신규 거래 서비스가 6월 15일부터 적용됩니다.\n\n해당 서비스 관련 거래 문의 발생 시, 기존 처리 방식과 동일하게 대응하되 API 오류 발생 건은 별도 에스컬레이션 해주시기 바랍니다.\n\n자세한 내용은 첨부된 가이드를 참고해 주세요.' },
+    { id:3,  title:'아이템매니아 신한은행 가상계좌 충전 오류 — 정상화 완료', date:'2026-06-11', author:'백휘섭', site:'MANIA', content:'6월 11일 오전 10시경 신한은행 가상계좌 충전 기능에 일시적 오류가 발생하였으나, 오후 2시 기준 정상화 완료되었습니다.\n\n해당 시간대 충전 실패 건은 자동 환불 처리됩니다.\n\n불편을 드려 죄송합니다.' },
+    { id:4,  title:'6월 정기 점검 일정 안내', date:'2026-06-05', author:'백휘섭', site:'MANIA', content:'6월 정기 시스템 점검이 아래 일정으로 진행됩니다.\n\n일시: 2026년 6월 20일(토) 새벽 2:00 ~ 5:00\n대상: 전체 서비스\n\n점검 시간 동안 서비스 이용이 불가하오니 참고 부탁드립니다.' },
+    { id:5,  title:'[베이] 마일리지 출금 한도 정책 변경 안내', date:'2026-06-08', author:'백휘섭', site:'BAY', content:'아이템베이 마일리지 출금 한도 정책이 6월 15일부터 변경됩니다.\n\n변경 전: 1일 최대 500만원\n변경 후: 1일 최대 300만원 (본인인증 완료 회원 기준)\n\n관련 문의 발생 시 변경 정책 기준으로 안내 부탁드립니다.' },
+    // 2026년 5월
+    { id:6,  title:'5월 거래 통계 리포트 공유', date:'2026-05-31', author:'백휘섭', site:'MANIA', content:'5월 거래 통계 리포트입니다.\n\n- 총 거래 건수: 128,450건\n- 분쟁 접수: 342건\n- 처리 완료율: 97.2%\n\n자세한 내용은 내부 공유 문서를 확인해 주세요.' },
+    { id:7,  title:'[매니아] 신규 게임 아이템 카테고리 추가 안내', date:'2026-05-20', author:'백휘섭', site:'MANIA', content:'5월 25일부터 신규 게임 아이템 카테고리가 추가됩니다.\n\n추가 카테고리: 배틀그라운드 파트너스, 던전앤드래곤 온라인\n\n해당 카테고리 관련 문의 시 기존 아이템 카테고리 규정에 준하여 처리 부탁드립니다.' },
+    { id:8,  title:'어린이날 연휴 고객센터 운영 안내', date:'2026-05-02', author:'백휘섭', site:'BAY', content:'어린이날 연휴(5월 3일~6일) 동안 고객센터 운영 시간이 단축됩니다.\n\n운영 시간: 오전 10:00 ~ 오후 4:00\n\n해당 기간 발생한 긴급 문의는 다음 영업일 순차 처리됩니다.' },
+    { id:9,  title:'[공통] 금칙어 필터 업데이트 완료', date:'2026-05-15', author:'백휘섭', site:'MANIA', content:'금칙어 필터가 업데이트되었습니다.\n\n추가된 금칙어: 87개\n삭제된 금칙어: 12개\n\n이상 감지 시 모니터링 로그를 통해 확인 가능합니다.' },
+    // 2026년 4월
+    { id:10, title:'4월 정기 보안 점검 완료', date:'2026-04-28', author:'백휘섭', site:'MANIA', content:'4월 정기 보안 점검이 완료되었습니다.\n\n점검 결과 이상 없음. 다음 점검은 7월 예정입니다.' },
+    { id:11, title:'[베이] 개인정보처리방침 개정 안내', date:'2026-04-10', author:'백휘섭', site:'BAY', content:'아이템베이 개인정보처리방침이 개정되었습니다.\n\n주요 변경 사항:\n- 개인정보 보유 기간 세분화\n- 제3자 제공 항목 업데이트\n\n2026년 5월 1일부터 적용됩니다.' },
+    // 2025년 12월
+    { id:12, title:'2025년 연간 통계 리포트', date:'2025-12-31', author:'백휘섭', site:'MANIA', content:'2025년 연간 거래 통계 리포트입니다.\n\n- 총 거래: 1,542,000건\n- 사기 신고 처리: 4,210건\n- 고객 만족도: 92.3%' },
+    { id:13, title:'연말 시스템 점검 안내', date:'2025-12-26', author:'백휘섭', site:'BAY', content:'12월 28일(일) 새벽 1:00~6:00 연말 정기 시스템 점검이 진행됩니다.\n\n점검 중 모든 서비스가 일시 중단됩니다.' },
+    // 2025년 11월
+    { id:14, title:'[매니아] 신규 회원 등급 정책 안내', date:'2025-11-15', author:'백휘섭', site:'MANIA', content:'신규 회원 등급 정책이 12월 1일부터 적용됩니다.\n\n등급: 일반 → 실버 → 골드 → 다이아\n\n각 등급별 혜택 및 기준은 공지 첨부 파일 참고 바랍니다.' },
+    { id:15, title:'[베이] 11월 이벤트 당첨자 발표', date:'2025-11-20', author:'백휘섭', site:'BAY', content:'11월 이벤트 당첨자가 발표되었습니다.\n\n당첨자 명단은 마이페이지 > 이벤트 내역에서 확인하실 수 있습니다.' },
+];
+
+let _noticeYear   = null;
+let _noticeMonth  = null;
+let _noticeMode   = 'recent'; // 'recent' | 'filter'
+
+function initNoticePanel() {
+    _noticeMode  = 'recent';
+    _noticeYear  = null;
+    _noticeMonth = null;
+    renderNoticeYearCol();
+    renderNoticeMonthCol();
+    renderNoticeGrid();
+}
+
+function renderNoticeYearCol() {
+    const years = [...new Set(NOTICES.map(n => parseInt(n.date.split('-')[0])))].sort((a,b) => b-a);
+    const col = document.getElementById('noticeYearCol');
+    col.innerHTML = `<div class="notice-year-col-header">년도</div>
+        <button class="cat-all-btn${_noticeMode==='recent'?' mania-active':''}" style="width:100%;margin-bottom:4px;font-size:var(--fs-xs);" onclick="selectNoticeRecent()">최근</button>`;
+    col.innerHTML += years.map(y =>
+        `<button class="notice-yr-btn${_noticeMode==='filter'&&y===_noticeYear?' active':''}" onclick="selectNoticeYear(${y})">${y}</button>`
+    ).join('');
+}
+
+function renderNoticeMonthCol() {
+    const col = document.getElementById('noticeMonthCol');
+    if (_noticeMode === 'recent' || _noticeYear === null) {
+        col.innerHTML = '<div class="notice-month-col-header">월</div>';
+        col.innerHTML += Array.from({length:12},(_,i)=>i+1).map(m =>
+            `<button class="notice-mo-btn" disabled>${m}월</button>`
+        ).join('');
+        return;
+    }
+    const monthsWithData = new Set(
+        NOTICES.filter(n => parseInt(n.date.split('-')[0]) === _noticeYear)
+               .map(n => parseInt(n.date.split('-')[1]))
+    );
+    col.innerHTML = '<div class="notice-month-col-header">월</div>';
+    col.innerHTML += Array.from({length:12},(_,i)=>i+1).map(m => {
+        const has = monthsWithData.has(m);
+        return `<button class="notice-mo-btn${m===_noticeMonth?' active':''}" onclick="selectNoticeMonth(${m})" ${has?'':' disabled'}>${m}월</button>`;
+    }).join('');
+}
+
+function selectNoticeRecent() {
+    _noticeMode  = 'recent';
+    _noticeYear  = null;
+    _noticeMonth = null;
+    document.getElementById('noticeSearchInput').value = '';
+    renderNoticeYearCol();
+    renderNoticeMonthCol();
+    renderNoticeGrid();
+}
+
+function selectNoticeYear(y) {
+    _noticeMode = 'filter';
+    _noticeYear = y;
+    const months = NOTICES.filter(n => parseInt(n.date.split('-')[0]) === y)
+                          .map(n => parseInt(n.date.split('-')[1]));
+    _noticeMonth = Math.max(...months);
+    document.getElementById('noticeSearchInput').value = '';
+    renderNoticeYearCol();
+    renderNoticeMonthCol();
+    renderNoticeGrid();
+}
+
+function selectNoticeMonth(m) {
+    _noticeMode  = 'filter';
+    _noticeMonth = m;
+    document.getElementById('noticeSearchInput').value = '';
+    renderNoticeMonthCol();
+    renderNoticeGrid();
+}
+
+function renderNoticeGrid(filtered) {
+    const label = document.getElementById('noticePeriodLabel');
+    const grid  = document.getElementById('noticeGrid');
+
+    let items;
+    if (filtered !== undefined) {
+        items = filtered;
+    } else if (_noticeMode === 'recent') {
+        items = [...NOTICES].sort((a,b) => b.date.localeCompare(a.date));
+    } else {
+        items = NOTICES.filter(n => {
+            const [y,mo] = n.date.split('-').map(Number);
+            return y === _noticeYear && mo === _noticeMonth;
+        }).sort((a,b) => b.date.localeCompare(a.date));
+    }
+
+    label.textContent = filtered !== undefined
+        ? `검색 결과 (${items.length}건)`
+        : _noticeMode === 'recent'
+            ? `최근 공지 (${items.length}건)`
+            : `${_noticeYear}년 ${_noticeMonth}월 공지`;
+
+    if (!items.length) {
+        grid.innerHTML = '<div class="notice-empty">해당 기간에 공지가 없습니다</div>';
+        return;
+    }
+
+    // 최근 공지 모드: 고정 공지 분리 + 일반 최대 20개
+    if (_noticeMode === 'recent' && filtered === undefined) {
+        const pinned  = items.filter(n => n.pinned);
+        const normal  = items.filter(n => !n.pinned).slice(0, 20);
+        let html = '';
+        if (pinned.length) {
+            html += `<div class="notice-section-sep" style="grid-column:1/-1;">📌 고정 공지</div>`;
+            html += pinned.map(n => renderNoticeCard(n)).join('');
+            html += `<div class="notice-section-sep" style="grid-column:1/-1;">최근 공지 (최대 20건)</div>`;
+        }
+        html += normal.map(n => renderNoticeCard(n)).join('');
+        grid.innerHTML = html;
+    } else {
+        grid.innerHTML = items.map(n => renderNoticeCard(n)).join('');
+    }
+}
+
+function renderNoticeCard(n) {
+    const d = n.date.replace(/-/g,'.');
+    const site = n.site === 'MANIA' ? 'mania' : 'bay';
+    const preview = n.content.replace(/\n+/g, '  ');
+    const pinnedClass = n.pinned ? ' pinned' : '';
+    const pinIcon = n.pinned ? `<span class="n-pin-icon">📌</span>` : '';
+    return `<div class="n-card${pinnedClass}" onclick="openNoticeModal(${n.id})">
+        <div class="n-card-top">
+            ${pinIcon}<span class="n-card-badge ${site}">${n.site}</span>
+            <span class="n-card-date">${d}</span>
+        </div>
+        <div class="n-card-title">${n.title}</div>
+        <div class="n-card-preview">${preview}</div>
+        <div class="n-card-author">작성자: ${n.author}</div>
+    </div>`;
+}
+
+function handleNoticeSearch(q) {
+    if (!q.trim()) { renderNoticeGrid(); return; }
+    const results = NOTICES.filter(n =>
+        n.title.includes(q) || n.content.includes(q) || n.author.includes(q)
+    ).sort((a,b) => b.date.localeCompare(a.date));
+    renderNoticeGrid(results);
+}
+
+function openNoticeModal(id) {
+    const n = NOTICES.find(x => x.id === id);
+    if (!n) return;
+    const site = n.site === 'MANIA' ? 'mania' : 'bay';
+    document.getElementById('modalBadge').className = `n-card-badge ${site}`;
+    document.getElementById('modalBadge').textContent = n.site;
+    document.getElementById('modalTitle').textContent = n.title;
+    document.getElementById('modalMeta').innerHTML = `<span>${n.date.replace(/-/g,'.')}</span><span>·</span><span>${n.author}</span>`;
+    document.getElementById('modalBody').innerHTML = n.content.split('\n').map(line => line ? `<p>${line}</p>` : '<br>').join('');
+    document.getElementById('noticeModalOverlay').classList.add('open');
+}
+
+function closeNoticeModal(e) {
+    if (e.target.id === 'noticeModalOverlay') {
+        document.getElementById('noticeModalOverlay').classList.remove('open');
+    }
+}
+
+// 공지 패널 클릭 시 초기화 (lazy)
+document.querySelector('[onclick="showPanel(\'notice\')"]').addEventListener('click', () => {
+    if (_noticeMode === null) initNoticePanel();
+});
+_noticeMode = null;
+initNoticePanel(); // 시작 화면이 공지이므로 즉시 초기화
+</script>
+</body>
+</html>

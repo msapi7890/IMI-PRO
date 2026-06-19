@@ -1,6 +1,6 @@
 {
   "name": "imi-pro",
-  "version": "26.6.92",
+  "version": "26.6.94",
   "description": "IMI PRO Desktop",
   "main": "main.js",
   "scripts": {
@@ -45,10 +45,8 @@
       "deleteAppDataOnUninstall": false
     },
     "publish": {
-      "provider": "github",
-      "owner": "msapi7890",
-      "repo": "IMI-PRO-Settings",
-      "releaseType": "release"
+      "provider": "generic",
+      "url": "http://1.221.202.77:20002/updates/"
     }
   }
 }

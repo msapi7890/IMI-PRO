@@ -1,3 +1,22 @@
 upload_notices_april.html
 notices_data_temp.json
 매뉴얼 최신판.html
+
+# 민감 정보 — 절대 커밋 금지
+manual-9a47c-firebase-adminsdk-*.json
+claude-proxy.php
+
+# 의존성·빌드 산출물
+node_modules/
+desktop-app/dist/
+*.exe
+desktop-app/build_log*.txt
+
+# 대용량·생성 산출물 (보고서/엑셀/압축)
+*.zip
+*.docx
+*.xlsx
+
+# 데이터/임시 폴더
+/비거래/
+/서버이전/

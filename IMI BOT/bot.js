@@ -58,7 +58,8 @@
         }
         if (msg.type === 'STOP_BOT') {
             isRunning = false;
-            sessionStorage.removeItem('_imi_page2_scan');
+            sessionStorage.removeItem('_imi_scan_page');
+            sessionStorage.removeItem('_imi_accum_items');
             _clearLoggedKeys(); // 정지 시 리셋 → 재시작하면 첫 감지로 취급
             setStatus('⏹ 정지됨', '#94a3b8');
             sendResponse({ ok: true });
@@ -416,21 +417,21 @@
         // monitor_history 기록은 background.js의 FIREBASE_SET 핸들러에서 원자적으로 처리됨
     }
 
-    // --- 2페이지 존재 여부 확인 ---
-    function findPage2Link() {
+    // --- N페이지 존재 여부 확인 ---
+    function findPageLink(n) {
         return Array.from(document.querySelectorAll('a[href]')).find(a => {
             const h = a.href || '';
-            return h.includes('page=2') || h.includes('pnum=2') || h.includes('nowPage=2') || h.includes('pageNo=2');
+            return h.includes('page=' + n) || h.includes('pnum=' + n) || h.includes('nowPage=' + n) || h.includes('pageNo=' + n);
         }) || Array.from(document.querySelectorAll('a')).find(a => {
-            return a.textContent.trim() === '2' && a.closest('[class*="pag"],[class*="page"],[class*="num"]');
+            return a.textContent.trim() === String(n) && a.closest('[class*="pag"],[class*="page"],[class*="num"]');
         }) || null;
     }
 
-    // --- 2페이지 이동 ---
-    function goToPage2() {
-        const p2 = findPage2Link();
-        if (p2) { p2.click(); return; }
-        // 링크 없으면 이동 안 함 (1페이지만 있는 경우)
+    // --- N페이지 이동 ---
+    function goToPage(n) {
+        const p = findPageLink(n);
+        if (p) { p.click(); return; }
+        // 링크 없으면 이동 안 함
     }
 
     // --- 시간대 체크 ---
@@ -460,6 +461,8 @@
 
     // --- 메인 스캔 루프 ---
     const _P1_ITEMS_KEY = '_imi_page1_items';
+    const _ACCUM_ITEMS_KEY = '_imi_accum_items';
+    const _MAX_SCAN_PAGES = 3;
 
     async function _fireAlert(combined, intervalMs) {
         const prevKeys = _getLoggedKeys();
@@ -543,73 +546,50 @@
             return;
         }
 
-        const onPage2 = sessionStorage.getItem('_imi_page2_scan') === '1';
-        setStatus('🔍 스캔 중...' + (onPage2 ? ' (2p)' : ' (1p)'), '#3abff8');
+        const curPage = parseInt(sessionStorage.getItem('_imi_scan_page') || '1', 10);
+        setStatus('🔍 스캔 중... (' + curPage + 'p)', '#3abff8');
 
         const items = scanPage();
         const intervalMs = (rule.scanInterval || 5) * 1000;
 
-        if (onPage2) {
-            // 2페이지 스캔 완료 — 저장된 1페이지 결과와 합산
-            let p1Items = [];
-            try {
-                const raw = sessionStorage.getItem(_P1_ITEMS_KEY);
-                if (raw) p1Items = JSON.parse(raw);
-            } catch(e) {}
-            sessionStorage.removeItem(_P1_ITEMS_KEY);
-            sessionStorage.removeItem('_imi_page2_scan');
+        // 이전 페이지들의 누적 결과 불러와 합산 (중복 제거)
+        let accum = [];
+        try {
+            const raw = sessionStorage.getItem(_ACCUM_ITEMS_KEY);
+            if (raw) accum = JSON.parse(raw);
+        } catch (e) {}
+        const accumKeys = new Set(accum.map(_itemKey));
+        const merged = accum.concat(items.filter(it => !accumKeys.has(_itemKey(it))));
 
-            // 1페이지와 중복되는 항목 제거
-            const p1Keys = new Set(p1Items.map(_itemKey));
-            const combined = [...p1Items, ...items.filter(it => !p1Keys.has(_itemKey(it)))];
-
-            if (combined.length > 0) {
-                _fireAlert(combined, intervalMs);
-            } else {
-                _clearLoggedKeys();
-                const t = new Date().toLocaleTimeString('ko-KR');
-                setStatus(`없음 — ${rule.scanInterval || 5}초 후 재검색 (${t})`, '#94a3b8');
-                document.getElementById('_imi_items').innerHTML = '';
-                setTimeout(() => { if (!isRunning) return; submitSearch(); }, intervalMs);
-            }
+        // 다음 페이지로 이동할지 결정 (최대 _MAX_SCAN_PAGES, 다음 페이지 링크 존재 시)
+        const nextPage = curPage + 1;
+        if (curPage < _MAX_SCAN_PAGES && findPageLink(nextPage)) {
+            // _el 은 직렬화 불가 → 제외하고 저장 (마지막 페이지 항목만 _el 유지)
+            sessionStorage.setItem(_ACCUM_ITEMS_KEY, JSON.stringify(
+                merged.map(it => ({ t: it.t, p: it.p, u: it.u, key: it.key, tid: it.tid, listTime: it.listTime || '', matchedKw: it.matchedKw || '' }))
+            ));
+            sessionStorage.setItem('_imi_scan_page', String(nextPage));
+            setStatus(`${curPage}p ${items.length}개 (누적 ${merged.length}) — ${nextPage}p 추가 스캔 중...`, '#f59e0b');
+            setTimeout(() => {
+                if (!isRunning) return;
+                goToPage(nextPage);
+                setTimeout(() => { if (!isRunning) return; doCheck(); }, 1500);
+            }, 400);
             return;
         }
 
-        // 1페이지 스캔
-        if (items.length > 0) {
-            if (findPage2Link()) {
-                // 2페이지가 있으면 1페이지 결과를 저장하고 2페이지도 스캔 (_el 제외 직렬화)
-                sessionStorage.setItem(_P1_ITEMS_KEY, JSON.stringify(
-                    items.map(it => ({ t: it.t, p: it.p, u: it.u, key: it.key, tid: it.tid, listTime: it.listTime || '', matchedKw: it.matchedKw || '' }))
-                ));
-                sessionStorage.setItem('_imi_page2_scan', '1');
-                setStatus(`1p ${items.length}개 — 2p 추가 스캔 중...`, '#f59e0b');
-                setTimeout(() => {
-                    if (!isRunning) return;
-                    goToPage2();
-                    setTimeout(() => { if (!isRunning) return; doCheck(); }, 1500);
-                }, 400);
-            } else {
-                // 2페이지 없음 → 바로 알림
-                _fireAlert(items, intervalMs);
-            }
+        // 마지막 페이지(또는 다음 링크 없음) — 누적 결과 확정
+        sessionStorage.removeItem(_ACCUM_ITEMS_KEY);
+        sessionStorage.removeItem('_imi_scan_page');
+
+        if (merged.length > 0) {
+            _fireAlert(merged, intervalMs);
         } else {
-            // 1페이지 결과 없음
-            if (!findPage2Link()) {
-                _clearLoggedKeys();
-                const t = new Date().toLocaleTimeString('ko-KR');
-                setStatus(`없음 — ${rule.scanInterval || 5}초 후 재검색 (${t})`, '#94a3b8');
-                document.getElementById('_imi_items').innerHTML = '';
-                setTimeout(() => { if (!isRunning) return; submitSearch(); }, intervalMs);
-                return;
-            }
-            sessionStorage.setItem('_imi_page2_scan', '1');
-            setStatus('1p 없음 — 2p 스캔 중...', '#64748b');
-            setTimeout(() => {
-                if (!isRunning) return;
-                goToPage2();
-                setTimeout(() => { if (!isRunning) return; doCheck(); }, 1500);
-            }, 400);
+            _clearLoggedKeys();
+            const t = new Date().toLocaleTimeString('ko-KR');
+            setStatus(`없음 — ${rule.scanInterval || 5}초 후 재검색 (${t})`, '#94a3b8');
+            document.getElementById('_imi_items').innerHTML = '';
+            setTimeout(() => { if (!isRunning) return; submitSearch(); }, intervalMs);
         }
     }
 

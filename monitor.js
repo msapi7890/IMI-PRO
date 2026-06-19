@@ -1,4 +1,121 @@
+// EXE 토스트 클릭 → 모니터링 현황 이동
+if (window.electronAPI && window.electronAPI.onNavMonhw) {
+    window.electronAPI.onNavMonhw(function() {
+        window._navMonhwPending = true; // 로드 시 기본탭(공지)이 덮지 않도록
+        var go = function(){ if (typeof window._imiNavSwitch === 'function') window._imiNavSwitch('monhw'); };
+        go();
+        setTimeout(go, 200); // 직후 기본탭 전환과 경쟁 시 한 번 더
+    });
+}
+
 // ===== IMI BOT 상태 대시보드 =====
+// Firebase SDK initializeApp 없이 REST API 직접 통신
+var _MON_FB  = 'https://manual-9a47c-default-rtdb.firebaseio.com';
+var _MON_KEY = 'AIzaSyDc3L_8IfVJxjIkv1tnOXRy_tQx3fSPxOI';
+var _monFbTok = null;
+var _monFbTokExp = 0;
+
+function _monGetToken() {
+    if (_monFbTok && Date.now() < _monFbTokExp) return Promise.resolve(_monFbTok);
+    if (typeof _fbRestToken !== 'undefined' && _fbRestToken) return Promise.resolve(_fbRestToken);
+    return fetch('https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=' + _MON_KEY, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({email:'imiprobot@gmail.com', password:'mania3001!', returnSecureToken:true})
+    }).then(function(r){ return r.json(); }).then(function(d){
+        if (d && d.idToken) { _monFbTok = d.idToken; _monFbTokExp = Date.now() + 55*60*1000; return d.idToken; }
+        return '';
+    }).catch(function(){ return ''; });
+}
+
+function _monSnap(path, val) {
+    return {
+        val: function(){ return val; },
+        key: path ? path.split('/').pop() : null,
+        exists: function(){ return val !== null && val !== undefined; },
+        forEach: function(cb){ if(val && typeof val==='object') Object.keys(val).forEach(function(k){ cb(_monSnap(path+'/'+k, val[k])); }); },
+        child: function(cp){ return _monSnap(path+'/'+cp, val&&typeof val==='object'?val[cp]:undefined); }
+    };
+}
+
+// Firebase 실시간 스트리밍(SSE 푸시) — 봇이 쓰는 즉시 받음 (폴링 텀 없음). 끊기면 자동 재연결.
+function _fbStream(path, onData) {
+    var es = null, node = {}, renewTimer = null;
+    function setNode(p, data) {
+        if (p === '/' || p === '') { node = (data && typeof data === 'object') ? data : {}; return; }
+        var key = p.replace(/^\//, '').split('/')[0];
+        if (!node || typeof node !== 'object') node = {};
+        if (data === null || data === undefined) delete node[key];
+        else node[key] = data;
+    }
+    function connect() {
+        if (renewTimer) { clearTimeout(renewTimer); renewTimer = null; }
+        _monGetToken().then(function(tok) {
+            try {
+                if (es) { try { es.close(); } catch (_) {} es = null; }
+                es = new EventSource(_MON_FB + '/' + path + '.json' + (tok ? '?auth=' + tok : ''));
+                es.addEventListener('put', function(e) {
+                    try { var m = JSON.parse(e.data); setNode(m.path, m.data); onData(node); } catch (_) {}
+                });
+                es.addEventListener('patch', function(e) {
+                    try {
+                        var m = JSON.parse(e.data);
+                        if ((m.path === '/' || m.path === '') && m.data && typeof m.data === 'object') {
+                            if (!node || typeof node !== 'object') node = {};
+                            Object.keys(m.data).forEach(function(k) { node[k] = m.data[k]; });
+                        } else { setNode(m.path, m.data); }
+                        onData(node);
+                    } catch (_) {}
+                });
+                es.onerror = function() { try { if (es) es.close(); } catch (_) {} es = null; setTimeout(connect, 5000); };
+            } catch (_) { setTimeout(connect, 5000); }
+        }).catch(function() { setTimeout(connect, 5000); });
+        renewTimer = setTimeout(connect, 50 * 60 * 1000); // 토큰 만료 전 재연결
+    }
+    connect();
+}
+
+var _mDb = (function(){
+    function makeRef(path, lim) {
+        path = (path||'').replace(/^\/+/,'').replace(/\/+$/,'');
+        var _timers = [];
+        function doGet(){
+            return _monGetToken().then(function(tok){
+                var url = _MON_FB+'/'+path+'.json'+(tok?'?auth='+tok:'');
+                if(lim) url += (tok?'&':'?')+'orderBy="$key"&limitToLast='+lim;
+                return fetch(url).then(function(r){ return r.ok?r.json():null; }).catch(function(){ return null; });
+            });
+        }
+        function doWrite(method, data){
+            return _monGetToken().then(function(tok){
+                return fetch(_MON_FB+'/'+path+'.json'+(tok?'?auth='+tok:''), {
+                    method:method, headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)
+                });
+            }).catch(function(){});
+        }
+        var self = {
+            key: path?path.split('/').pop():null,
+            child: function(cp){ return makeRef(path?path+'/'+cp:cp); },
+            once: function(evt,cb){ return doGet().then(function(val){ var s=_monSnap(path,val); if(cb)cb(s); return s; }); },
+            on: function(evt,cb,errCb){
+                self.once(evt,cb);
+                var t=setInterval(function(){ doGet().then(function(val){ cb(_monSnap(path,val)); }).catch(function(e){ if(errCb)errCb(e); }); },20000);
+                _timers.push(t); return cb;
+            },
+            off: function(){ _timers.forEach(clearInterval); _timers=[]; },
+            set: function(data,cb){ return doWrite('PUT',data).then(function(){ if(cb)cb(null); }).catch(function(e){ if(cb)cb(e); }); },
+            update: function(data,cb){ return doWrite('PATCH',data).then(function(){ if(cb)cb(null); }).catch(function(e){ if(cb)cb(e); }); },
+            remove: function(cb){ return _monGetToken().then(function(tok){ return fetch(_MON_FB+'/'+path+'.json'+(tok?'?auth='+tok:''),{method:'DELETE'}); }).then(function(){ if(cb)cb(null); }).catch(function(e){ if(cb)cb(e); }); },
+            push: function(data,cb){ return _monGetToken().then(function(tok){ return fetch(_MON_FB+'/'+path+'.json'+(tok?'?auth='+tok:''),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}); }).then(function(r){ return r.json(); }).then(function(d){ var nr=makeRef(path+'/'+(d&&d.name?d.name:Date.now())); if(cb)cb(null,nr); return nr; }).catch(function(e){ if(cb)cb(e); }); },
+            limitToLast: function(n){ return makeRef(path,n); },
+            orderByChild: function(){ return self; },
+            equalTo: function(){ return self; },
+            toString: function(){ return path; }
+        };
+        return self;
+    }
+    return { ref: function(path){ return makeRef(path||''); } };
+})();
+
 var _botStatus = null;
 var _botBridgeConnected = false;
 
@@ -57,7 +174,7 @@ function toggleBotFromWeb() {
     _botTogglePending = true;
     if (_botStatus && _botStatus.active) {
         _botToggleExpected = 'stop';
-        db.ref('bot_cmd').set({ cmd: 'stop', ts: Date.now() });
+        _mDb.ref('bot_cmd').set({ cmd: 'stop', ts: Date.now() });
         if (_botBridgeConnected) _sendToBot({ type: 'STOP_ALL' });
     } else {
         var rules = (_botStatus && _botStatus.rules) || [];
@@ -74,7 +191,7 @@ function toggleBotFromWeb() {
             return;
         }
         _botToggleExpected = 'start';
-        db.ref('bot_cmd').set({ cmd: 'start', ruleIds: checkedIds, ts: Date.now() });
+        _mDb.ref('bot_cmd').set({ cmd: 'start', ruleIds: checkedIds, ts: Date.now() });
         if (_botBridgeConnected) _sendToBot({ type: 'START_SELECTED', ruleIds: checkedIds });
     }
     // 30초 후에도 Firebase 응답 없으면 버튼 복구
@@ -116,8 +233,8 @@ function _updateBotToggleBtn() {
 
 // Firebase에서 봇 상태 실시간 구독 (auth 완료 후 재구독으로 permission_denied 복구)
 function _subscribeBotStatus() {
-    db.ref('bot_status').off('value');
-    db.ref('bot_status').on('value', function(snap) {
+    _mDb.ref('bot_status').off('value');
+    _mDb.ref('bot_status').on('value', function(snap) {
         _botStatus = snap.val();
         _renderBotStatus();
         _updateHdrDot();
@@ -134,12 +251,7 @@ setInterval(function() {
     window.electronAPI.send('monitor-active', !!(isActive && !isStale));
 }, 5000);
 
-firebase.auth().onAuthStateChanged(function(user) {
-    if (!user) return;
-    _subscribeBotStatus();
-    _subscribeBlocked();
-    _subscribeFlashState();
-});
+// REST API 방식은 auth 콜백 불필요 — 토큰은 _monGetToken()이 자동 처리
 
 function _renderBotStatus() {
     var s = _botStatus;
@@ -451,12 +563,12 @@ async function testMonitorRule(id) {
     }
 }
 
-function toggleMonitorRule(id, enabled) { db.ref('monitor_rules/'+id+'/enabled').set(enabled); }
+function toggleMonitorRule(id, enabled) { _mDb.ref('monitor_rules/'+id+'/enabled').set(enabled); }
 function deleteMonitorRule(id) {
     if (!confirm('이 감시 규칙을 삭제하시겠습니까?')) return;
     var pw = prompt('관리자 비밀번호:');
     if (pw !== ADMIN_PW) { if (pw) alert('❌ 비밀번호 오류'); return; }
-    db.ref('monitor_rules/'+id).remove();
+    _mDb.ref('monitor_rules/'+id).remove();
 }
 
 function addMonitorRule() {
@@ -472,7 +584,7 @@ function addMonitorRule() {
     if (pw !== ADMIN_PW) { if (pw) alert('❌ 비밀번호 오류'); return; }
     var minPrice = minPriceRaw ? (parseInt(minPriceRaw.replace(/[^0-9]/g,''))||0) : 0;
     var maxPages = parseInt(document.getElementById('mrMaxPages').value)||3;
-    db.ref('monitor_rules').push({ name:name, url:url, keyword:keyword, minPrice:minPrice, gameLabel:gameLabel, maxPages:maxPages, enabled:true, createdAt:Date.now() });
+    _mDb.ref('monitor_rules').push({ name:name, url:url, keyword:keyword, minPrice:minPrice, gameLabel:gameLabel, maxPages:maxPages, enabled:true, createdAt:Date.now() });
     ['mrName','mrUrl','mrKeyword','mrMinPrice','mrGame'].forEach(function(i){ document.getElementById(i).value=''; });
     document.getElementById('mrMaxPages').value='3';
     alert('✅ 감시 규칙이 등록되었습니다!');
@@ -655,7 +767,7 @@ function _triggerMonitorAlert(id, rule, items) {
         +lines.join('\n')
         +'\n\n🔗 '+rule.url;
     var _at = Date.now();
-    db.ref('monitor_flash_state').set({
+    _mDb.ref('monitor_flash_state').set({
         active: true,
         ruleName: rule.name,
         ruleKeyword: rule.keyword || '',
@@ -666,7 +778,7 @@ function _triggerMonitorAlert(id, rule, items) {
     // 구 모니터 엔진(거래번호 감시)은 history 기록 안 함
 }
 
-function closeMonitorFlash() { db.ref('monitor_flash_state/active').set(false); }
+function closeMonitorFlash() { _mDb.ref('monitor_flash_state/active').set(false); }
 
 function _getNotifPrefs(){
     try{ return Object.assign({flash:true,popup:true,sound:false,watchPopup:false},JSON.parse(localStorage.getItem('imi_notif_prefs')||'{}')); }catch(e){ return {flash:true,popup:true,sound:false,watchPopup:false}; }
@@ -814,7 +926,7 @@ function _getNotifPrefs(){
             if (!tid) return;
             var by = (typeof _currentUser !== 'undefined' && _currentUser && _currentUser.name) ? _currentUser.name : '';
             doneBtn.disabled = true;
-            db.ref('imi_watch_done/' + tid).set({ at: Date.now(), by: by });
+            _mDb.ref('imi_watch_done/' + tid).set({ at: Date.now(), by: by });
             // 해당 항목 행 페이드아웃 후 제거
             var row = doneBtn.closest('[style*="border-bottom"]') || doneBtn.parentNode.parentNode;
             row.style.transition = 'opacity 0.4s';
@@ -903,7 +1015,22 @@ function _fireOsNotif(s) {
 }
 
 function _showMonitorFlash(s) {
-    if (s.ruleType === 'watch') return;
+    if (s.ruleType === 'watch') {
+        // 비거래 재감지: 봇이 monitor_flash_state로 현재 스캔 결과 전달 → 사라진 항목 블러
+        if (window._wItemCache && window._wGone && typeof window._rebuildWatchPanel === 'function') {
+            var _wCurTids = new Set((s.itemRows||[]).map(function(it){ return String(it.tid||''); }).filter(Boolean));
+            var _wRuleLabel = s.label || s.ruleName || '';
+            var _wChanged = false;
+            Object.keys(window._wItemCache).forEach(function(tid) {
+                var info = window._wItemCache[tid];
+                if (_wRuleLabel && info.label !== _wRuleLabel) return;
+                if (!_wCurTids.has(tid) && !window._wGone.has(tid)) { window._wGone.add(tid); _wChanged = true; }
+                if (_wCurTids.has(tid) && window._wGone.has(tid))    { window._wGone.delete(tid); _wChanged = true; }
+            });
+            if (_wChanged) window._rebuildWatchPanel();
+        }
+        return;
+    }
     // 필터제외 물품 제거 — 재감지 시 이미 제외된 물품은 알림 안 띄움
     var filteredRows = (s.itemRows || []).filter(function(it) {
         var k = it.key || (it.t||'').substring(0,30).trim();
@@ -912,122 +1039,33 @@ function _showMonitorFlash(s) {
     if (filteredRows.length === 0) return;
     s.itemRows = filteredRows;
     s.itemCount = filteredRows.length;
+
+    // 재감지 시: 이전 스캔에 있었는데 현재 없는 tid → 물품 삭제됨 자동 블러
+    var ruleKey = s.ruleKeyword || s.ruleName || '_default';
+    var curTids = new Set(filteredRows.map(function(it){ return String(it.tid||''); }).filter(Boolean));
+    var prevTids = _monhwRuleLastTids[ruleKey];
+    if (prevTids) {
+        prevTids.forEach(function(tid) {
+            if (!curTids.has(tid)) _monhwAutoMarkGone(tid);
+        });
+    }
+    _monhwRuleLastTids[ruleKey] = curTids;
+
+    // 재감지 판별: 모두 이미 알림된 tid이면 블러만 처리하고 알람·카드는 건너뜀
+    var hasNewTid = filteredRows.some(function(it) {
+        var tid = String(it.tid || '').trim();
+        return !tid || !_monhwFraudShownTids.has(tid);
+    });
+    if (!hasNewTid) return;
+
+    // 모니터링 현황 패널에 항상 추가 (팝업 설정 무관)
+    _monhwAddFraudCard(s);
+
     var _np=_getNotifPrefs();
 
-    // popup ON → 하단 팝업만 표시
-    if (_np.popup) {
-        if (_np.flash) { _triggerFullscreenFlash(); }
-        if (_np.sound) _playAlertBeep();
-        _startTabBlink(s.ruleName, s.itemCount, 'fraud');
-        _showInPagePopup('fraud', s);
-        // 상단바 탭 배지 표시 + 줄 깜빡임
-        var fTab = document.getElementById('fraudHeaderTab');
-        if(fTab) {
-            fTab.style.display = 'flex';
-            fTab.classList.add('hdr-tab-blink');
-            if(typeof _updateWatchFraudRow === 'function') _updateWatchFraudRow();
-            fTab._popupCount = (fTab._popupCount || 0) + (s.itemCount || 0);
-            fTab.innerHTML = '🚨 사기글&nbsp;<span style="background:#ef4444;color:#fff;border-radius:99px;padding:0 6px;font-size:10px;font-weight:900;">'+fTab._popupCount+'</span>';
-            if (_np.flash) _applyChatBorderFlash(); // 빨간불깜빡임 ON일 때만 상단 바 표시
-        }
-        _fireOsNotif(s);
-        return;
-    }
-
-    // 사기글 헤더 탭 + 드롭패널 — 키워드별 카드 위로 쌓기
-    var fraudTab   = document.getElementById('fraudHeaderTab');
-    var fraudPanel = document.getElementById('fraudDropPanel');
-    if(fraudTab && fraudPanel){
-        fraudTab.style.display = 'flex';
-        if(typeof _updateWatchFraudRow === 'function') _updateWatchFraudRow();
-        fraudTab.classList.add('hdr-tab-blink');
-        if (_np.flash) _applyChatBorderFlash(); // 빨간불깜빡임 ON일 때만 상단 바 표시
-
-        // 전체 스크롤 컨테이너 (없으면 생성)
-        var scrollBox = fraudPanel.querySelector('[data-fraud-scroll]');
-        if(!scrollBox){
-            fraudPanel.innerHTML = '';
-            scrollBox = document.createElement('div');
-            scrollBox.setAttribute('data-fraud-scroll','1');
-            scrollBox.style.cssText = 'padding:6px 8px;max-height:calc(75vh - 60px);overflow-y:auto;scrollbar-width:thin;scrollbar-color:#334155 transparent;display:flex;flex-direction:column;gap:5px;';
-            fraudPanel.appendChild(scrollBox);
-        }
-
-        // 키워드별 카드 — prepend(위에 추가)해서 최신이 맨 위
-        var card = document.createElement('div');
-        card.style.cssText = 'border:1.5px solid #ef444477;border-radius:8px;background:rgba(239,68,68,0.07);flex-shrink:0;';
-
-        // 카드 헤더 (규칙명 + 닫기)
-        var cardHdr = document.createElement('div');
-        cardHdr.style.cssText = 'display:flex;align-items:center;gap:6px;padding:7px 10px;border-bottom:1px solid #ef444433;';
-        cardHdr.innerHTML = '<span style="font-size:12px;font-weight:900;color:#ef4444;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">🚨 '+_esc(s.ruleName||'감지')
-            +(s.ruleKeyword?'&nbsp;<span style="color:#f87171;font-size:10px;">· "'+_esc(s.ruleKeyword)+'"</span>':'')
-            +'</span>'
-            +'<span style="font-size:10px;color:#94a3b8;font-weight:700;flex-shrink:0;margin-right:6px;">'+(s.itemCount||0)+'개</span>'
-            +'<button data-bulk-exclude="1" style="font-size:10px;padding:2px 8px;border-radius:4px;border:1px solid #f87171;color:#f87171;background:none;cursor:pointer;flex-shrink:0;white-space:nowrap;">전체 제외</button>';
-        card.appendChild(cardHdr);
-        card.setAttribute('data-fraud-card','1');
-
-        // 카드 아이템 목록 (최대 4개 보이고 나머지 스크롤)
-        var itemList = document.createElement('div');
-        itemList.style.cssText = 'max-height:calc(30vh - 30px);overflow-y:auto;scrollbar-width:thin;scrollbar-color:#334155 transparent;padding:0 10px;';
-        (s.itemRows||[]).forEach(function(it){
-            var k = _esc(it.key || (it.t||'').substring(0,30).trim());
-            var row = document.createElement('div');
-            row.style.cssText = 'padding:5px 0;border-bottom:1px solid #33415540;';
-            row.innerHTML = (it.tid?'<div style="font-size:16px;font-weight:900;color:#38bdf8;letter-spacing:0.03em;">#'+_fmtTid(it.tid)+'</div>':'')
-                +'<div style="display:flex;align-items:center;gap:6px;">'
-                +'<div style="font-size:11px;font-weight:800;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+_esc(it.t||'')+'</div>'
-                +(it.p?'<div style="color:#ef4444;font-weight:900;font-size:11px;flex-shrink:0;">'+Number(it.p).toLocaleString()+'원</div>':'')
-                +'</div>'
-                +'<div style="display:flex;align-items:center;gap:6px;margin-top:3px;">'
-                +'<button data-bk="'+k+'" data-title="'+_esc(it.t||'')+'" data-tid="'+_esc(it.tid||'')+'" data-price="'+(it.p||0)+'" style="font-size:10px;padding:2px 7px;border-radius:4px;border:1px solid #f87171;color:#f87171;background:none;cursor:pointer;flex-shrink:0;">필터제외</button>'
-                +'<span style="font-size:9px;color:#94a3b8;">정상 물품일 경우</span>'
-                +'</div>';
-            itemList.appendChild(row);
-        });
-        card.appendChild(itemList);
-        // 맨 위에 추가 (최신이 위)
-        scrollBox.insertBefore(card, scrollBox.firstChild);
-
-        // 탭 배지 누적
-        var totalCount = (fraudPanel._totalCount || 0) + (s.itemCount || 0);
-        fraudPanel._totalCount = totalCount;
-        fraudTab.innerHTML = '🚨 사기글&nbsp;<span style="background:#ef4444;color:#fff;border-radius:99px;padding:0 6px;font-size:10px;font-weight:900;">'+totalCount+'</span>';
-
-        fraudPanel.style.maxHeight = '75vh';
-        fraudPanel.style.borderColor = '#ef4444';
-        fraudPanel.classList.add('fraud-panel-blink');
-
-        // 카드별 30초 자동 제거
-        var _cardTimer = setTimeout(function(){
-            if(!card.parentNode) return;
-            card.remove();
-            fraudPanel._totalCount = Math.max(0, (fraudPanel._totalCount||0) - (s.itemCount||0));
-            if(!scrollBox.querySelector('[data-fraud-card]')){
-                _hideMonitorFlashLocal();
-            } else {
-                fraudTab.innerHTML = '🚨 사기글&nbsp;<span style="background:#ef4444;color:#fff;border-radius:99px;padding:0 6px;font-size:10px;font-weight:900;">'+(fraudPanel._totalCount||0)+'</span>';
-            }
-        }, 30000);
-        card._autoTimer = _cardTimer;
-    }
-
-    if (_np.flash) {
-        _triggerFullscreenFlash();
-    }
-
-    // 탭 제목 깜빡임
-    _startTabBlink(s.ruleName, s.itemCount, 'fraud');
-
-    // 경고음
     if (_np.sound) _playAlertBeep();
-
-    _fireOsNotif(s); // OS 브라우저 알림 (익스텐션 없는 환경 전용)
-
-
-    // 전역 타이머 제거 — 카드별 30초 타이머로 대체
-    if (window._monFlashTimer) { clearTimeout(window._monFlashTimer); window._monFlashTimer = null; }
+    _startTabBlink(s.ruleName, s.itemCount, 'fraud');
+    _fireOsNotif(s);
 }
 
 function _triggerFullscreenFlash() {
@@ -1071,7 +1109,7 @@ function _startTabBlink(ruleName, itemCount, id) {
     // id별 30초 자동 종료 타이머
     var autoKey = '_tabBlinkAuto_' + qid;
     if (window[autoKey]) clearTimeout(window[autoKey]);
-    window[autoKey] = setTimeout(function() { _stopTabBlink(qid); window[autoKey] = null; }, 30000);
+    window[autoKey] = setTimeout(function() { _stopTabBlink(qid); window[autoKey] = null; }, 10000);
     if (window._tabBlinkInterval) return;
     window._tabBlinkTick = 0;
     window._tabBlinkInterval = setInterval(function() {
@@ -1123,38 +1161,434 @@ var _lastFlashAt = 0;
 var _notifSentTids = new Set();
 var _blockedKeysCache = new Set();
 function _subscribeBlocked() {
-    db.ref('/imi_blocked').off('value');
-    db.ref('/imi_blocked').on('value', function(snap) {
+    _mDb.ref('/imi_blocked').off('value');
+    _mDb.ref('/imi_blocked').on('value', function(snap) {
         _blockedKeysCache = new Set();
         var list = snap.val() || [];
         if (!Array.isArray(list)) list = [];
         list.forEach(function(item) {
             var k = typeof item === 'object' ? item.key : item;
-            var t = typeof item === 'object' ? (item.type || 'fraud') : 'fraud';
-            if (t === 'fraud' && k) _blockedKeysCache.add(String(k));
+            if (k) _blockedKeysCache.add(String(k)); // fraud·watch 모두 캐시 (비거래 필터제외 누락 버그 수정)
         });
     });
 }
+var _flashPollStarted = false;
+function _flashPollMs() {
+    var min = Infinity;
+    if (typeof _botRules !== 'undefined' && Array.isArray(_botRules)) {
+        _botRules.forEach(function(r) {
+            if (r && r.enabled) { var s = parseInt(r.scanInterval) || 300; if (s < min) min = s; }
+        });
+    }
+    if (!isFinite(min)) min = 180;
+    return Math.max(30, min) * 1000; // 규칙 스캔 주기에 맞춤, 최소 30초
+}
+function _handleFlashState(s) {
+    if (!s) return;
+    if (s.active && s.at && (Date.now() - s.at) < 600000 && s.at !== _lastFlashAt) {
+        _lastFlashAt = s.at;
+        _showMonitorFlash(s);
+        var panel = document.getElementById('logPanel');
+        if (panel && !panel.classList.contains('hidden')) {
+            var tab1 = document.getElementById('logTab1');
+            var tab2 = document.getElementById('logTab2');
+            if (tab1 && tab1.classList.contains('mon-tab-active')) setTimeout(loadMonitorLog, 1500);
+            else if (tab2 && tab2.classList.contains('mon-tab-active')) setTimeout(loadWatchLog, 1500);
+        }
+    } else if (!s.active) _hideMonitorFlashLocal();
+}
 function _subscribeFlashState() {
-    db.ref('monitor_flash_state').off('value');
-    db.ref('monitor_flash_state').on('value', function(snap) {
-        var s = snap.val();
-        if (!s) return;
-        if (s.active && s.at && (Date.now() - s.at) < 60000 && s.at !== _lastFlashAt) {
-            _lastFlashAt = s.at;
-            _showMonitorFlash(s);
-            var panel = document.getElementById('logPanel');
-            if (panel && !panel.classList.contains('hidden')) {
-                var tab1 = document.getElementById('logTab1');
-                var tab2 = document.getElementById('logTab2');
-                if (tab1 && tab1.classList.contains('mon-tab-active')) setTimeout(loadMonitorLog, 1500);
-                else if (tab2 && tab2.classList.contains('mon-tab-active')) setTimeout(loadWatchLog, 1500);
-            }
-        } else if (!s.active) _hideMonitorFlashLocal();
-    });
+    if (_flashPollStarted) return;
+    _flashPollStarted = true;
+    // 실시간 푸시 (감지 즉시) — 봇이 monitor_flash_state에 쓰는 순간 받음
+    _fbStream('monitor_flash_state', function(s) { _handleFlashState(s); });
+    // 백업 폴링 (스트림 끊겼을 때 대비, 규칙 주기마다)
+    (function _pollFlash() {
+        var ms = _flashPollMs();
+        _mDb.ref('monitor_flash_state').once('value', function(snap) { _handleFlashState(snap.val()); });
+        setTimeout(_pollFlash, ms);
+    })();
 }
 _subscribeBlocked();
 _subscribeFlashState();
+
+// 감지 상태 인디케이터 동기화 (1초마다)
+var _watchIndToggle = false;
+setInterval(function() {
+    _watchIndToggle = !_watchIndToggle;
+    var fraudInd = document.getElementById('fraudStatusIndicator');
+    var watchInd = document.getElementById('watchStatusIndicator');
+    if (!fraudInd && !watchInd) return;
+
+    // 인디케이터 색 적용 — 개별 속성 설정(cssText 누적 방지), 테마 대응 + 진한 활성색
+    function _setInd(el, border, color, bg) {
+        el.style.borderColor = border;
+        el.style.color = color;
+        el.style.background = bg;
+    }
+    function _setIndLabel(el, txt) { // 이모지 span은 보존하고 .ind-label만 갱신
+        var l = el.querySelector('.ind-label');
+        if (l) l.textContent = txt; else el.textContent = txt;
+    }
+    var _dark = document.body.classList.contains('dark-mode');
+    var _IDLE = ['var(--border-ui)', 'var(--text-main)', 'var(--bg-body)'];
+    // 다크모드: 밝은 색 / 라이트·그린모드: 진한 색 (배경 대비 확보)
+    var _RED   = _dark ? ['#f87171','#f87171','rgba(239,68,68,0.22)']  : ['#dc2626','#dc2626','rgba(220,38,38,0.14)'];
+    var _GREEN = _dark ? ['#4ade80','#4ade80','rgba(34,197,94,0.22)']  : ['#15803d','#15803d','rgba(21,128,61,0.14)'];
+    var _AMBER = _dark ? ['#fbbf24','#fbbf24','rgba(245,158,11,0.22)'] : ['#b45309','#b45309','rgba(180,83,9,0.14)'];
+
+    // 사기글: monhwFraudContent에서 활성 항목 수
+    if (fraudInd) {
+        var fc = document.getElementById('monhwFraudContent');
+        var fCount = 0;
+        if (fc) { fc.querySelectorAll('[data-item-tid]').forEach(function(r){ if (!r._autoGone && !r._filterDone) fCount++; }); }
+        _setInd.apply(null, [fraudInd].concat(fCount > 0 ? _RED : _IDLE));
+    }
+
+    // 비거래 + 거래번호 감시 인디케이터 — 두 상태 번갈아 표시
+    if (watchInd) {
+        // 처리완료/삭제/제외된 행은 빼고 '미처리 비거래'만 카운트 (사기글과 동일 방식) → 다 처리하면 불 꺼짐
+        var wContent = document.getElementById('monhwWatchContent');
+        var wCount = 0;
+        if (wContent) { wContent.querySelectorAll('[data-item-tid]').forEach(function(r){ if (!r._autoGone && !r._filterDone) wCount++; }); }
+        var tidCount = window._watchTidCount || 0;
+        var showGreen  = wCount > 0;
+        var showYellow = tidCount > 0;
+        if (showGreen && showYellow) {
+            if (_watchIndToggle) { _setInd.apply(null, [watchInd].concat(_GREEN)); _setIndLabel(watchInd, '비거래'); }
+            else { _setInd.apply(null, [watchInd].concat(_AMBER)); _setIndLabel(watchInd, '거래번호'); }
+        } else if (showYellow) {
+            _setInd.apply(null, [watchInd].concat(_AMBER)); _setIndLabel(watchInd, '거래번호');
+        } else if (showGreen) {
+            _setInd.apply(null, [watchInd].concat(_GREEN)); _setIndLabel(watchInd, '비거래');
+        } else {
+            _setInd.apply(null, [watchInd].concat(_IDLE)); _setIndLabel(watchInd, '비거래');
+        }
+    }
+
+    // 📡 모니터링 네비 버튼 — 상황별 색이 물결처럼 차오르는 효과
+    var navMon = document.getElementById('imiNav-monitoring');
+    if (navMon) {
+        var _fc = (typeof fCount !== 'undefined') ? fCount : 0;
+        var _wc = (typeof wCount !== 'undefined') ? wCount : 0;
+        var _tc = (typeof tidCount !== 'undefined') ? tidCount : 0;
+        // 자연스러운 중간 톤 (네온도 파스텔도 아닌) — 다크는 살짝 밝게, 라이트는 살짝 진하게
+        var _P = _dark
+            ? { r:'#f06a6a', g:'#4cb98a', a:'#e8a93f' }
+            : { r:'#dd4b4b', g:'#3a9e74', a:'#cf8a1f' };
+        var actives = [];
+        if (_fc > 0) actives.push(_P.r); // 사기글 — 빨강
+        if (_wc > 0) actives.push(_P.g); // 비거래 — 초록
+        if (_tc > 0) actives.push(_P.a); // 거래번호 — 호박
+        if (actives.length) {
+            navMon.classList.add('mon-nav-alert');
+            navMon.style.setProperty('--alert-color', actives[((Date.now()/2000)|0) % actives.length]);
+        } else {
+            navMon.classList.remove('mon-nav-alert');
+            navMon.style.removeProperty('--alert-color');
+        }
+    }
+}, 1000);
+
+// 비거래 감지 패널 — imi_watch_alerts 리스너 (Firebase REST polling)
+(function(){
+    var _shownAlertKeys = new Set();
+    var _initAt = Date.now();
+    var _wItemCache = {};        // tid → {it, label, time}  전체 캐시
+    var _wGone      = new Set(); // 사라진 tid
+    window._wAiType  = {};       // tid → 'nt'|'check'  AI 분류 캐시
+    window._wItemCache = _wItemCache;
+    window._wGone    = _wGone;
+    var _wRemovedTids = new Set(); // 처리완료 후 자동 제거된 tid (재추가 방지)
+    window._wRemovedTids = _wRemovedTids;
+
+    function _makeWatchAiBadge(type) {
+        var isNt = type === 'nt';
+        var b = document.createElement('span');
+        b.setAttribute('data-ai-badge', isNt ? '비거래' : '확인필요');
+        b.style.cssText = 'font-size:calc(var(--base-font,20px)*0.4);font-weight:900;border-radius:4px;padding:1px 5px;white-space:nowrap;flex-shrink:0;'
+            + (isNt ? 'color:#ef4444;background:rgba(239,68,68,0.15);border:1.5px solid rgba(239,68,68,0.5);'
+                    : 'color:#f59e0b;background:rgba(245,158,11,0.15);border:1.5px solid rgba(245,158,11,0.5);');
+        b.textContent = isNt ? '🚫 비거래' : '⚠️ 물품확인필요';
+        return b;
+    }
+
+    function _rebuildWatchPanel() {
+        var content = document.getElementById('monhwWatchContent');
+        if (!content) return;
+        var tids = Object.keys(_wItemCache);
+        if (!tids.length) {
+            content.innerHTML = '<div id="monhwWatchEmpty" style="text-align:center;padding:60px 0;font-size:13px;opacity:0.3;">감지된 비거래가 없습니다.<br><span style="font-size:11px;">봇이 비거래를 감지하면 여기에 표시됩니다.</span></div>';
+            _monhwWatchTotal = 0;
+            var _c0 = document.getElementById('monhwWatchCount');
+            if (_c0) _c0.style.display = 'none';
+            return;
+        }
+
+        // 라벨+감지시각 단위 그룹핑 → 새로 감지된 건은 별도 새 카드
+        var byLabel = {};
+        tids.forEach(function(tid) {
+            var info = _wItemCache[tid];
+            var gkey = info.label + '@@' + (info.time || '');
+            if (!byLabel[gkey]) byLabel[gkey] = { label: info.label, time: info.time, active: [], gone: [] };
+            (_wGone.has(tid) ? byLabel[gkey].gone : byLabel[gkey].active).push(tid);
+        });
+
+        content.innerHTML = '';
+        var total = 0;
+
+        // 최신 감지 카드가 위로 (시각 내림차순)
+        Object.keys(byLabel).sort(function(a,b){ return (byLabel[b].time||'').localeCompare(byLabel[a].time||''); }).forEach(function(gkey) {
+            var g = byLabel[gkey];
+            var count = g.active.length + g.gone.length;
+            if (!count) return;
+            var card = _monhwMakeCard('#22c55e', '📦', g.label, '', count, g.time, [], 'watch', gkey);
+            var itemList = card.querySelector('[data-item-list]');
+
+            function _buildRow(tid, isGone) {
+                var info = _wItemCache[tid]; if (!info || !itemList) return;
+                var row = _monhwMakeItemRow(info.it, 'watch', '#22c55e');
+                // AI 배지 복원
+                if (window._wAiType[tid]) {
+                    var ai = _makeWatchAiBadge(window._wAiType[tid]);
+                    var a = row.querySelector('a');
+                    row.insertBefore(ai, a ? a.nextSibling : row.firstChild);
+                }
+                // 필터제외 복원
+                var bk = String(info.it.key || (info.it.t||'').substring(0,30));
+                if (_blockedKeysCache.has(bk)) {
+                    row._filterDone = true;
+                    var bkBtn = row.querySelector('[data-bk]');
+                    if (bkBtn) { bkBtn.disabled = true; bkBtn.textContent = '제외됨'; bkBtn.style.opacity = '0.4'; }
+                    _monhwRowDoneOverlay(row, '✅ 처리완료');
+                }
+                // 처리완료(서버 동기화) 복원 — 패널 재생성 시에도 처리완료 유지
+                if (typeof _watchDoneSet !== 'undefined' && _watchDoneSet && _watchDoneSet[tid] && !row._filterDone) {
+                    row._filterDone = true;
+                    _monhwRowDoneOverlay(row, '✅ 처리완료');
+                }
+                // 물품 삭제됨 표시
+                if (isGone) {
+                    row._autoGone = true;
+                    var bkBtn2 = row.querySelector('[data-bk]');
+                    if (bkBtn2) { bkBtn2.disabled = true; bkBtn2.style.opacity = '0.3'; }
+                    _monhwRowDoneOverlay(row, '✅ 물품 삭제됨');
+                }
+                itemList.appendChild(row);
+            }
+
+            g.active.forEach(function(tid){ _buildRow(tid, false); });
+            g.gone.forEach(function(tid){ _buildRow(tid, true); });
+            content.appendChild(card);
+            total += count;
+        });
+
+        _monhwWatchTotal = total;
+        var cnt = document.getElementById('monhwWatchCount');
+        if (cnt) { cnt.style.display = total > 0 ? '' : 'none'; if (total > 0) cnt.textContent = total + '건'; }
+    }
+    window._rebuildWatchPanel = _rebuildWatchPanel; // _showMonitorFlash에서 접근
+
+    // imi_watch_alerts 처리 함수 (5초 폴링 + on() 공용)
+    function _processWatchAlerts(all) {
+        if (!all || typeof all !== 'object') return;
+        var needRebuild = false;
+        var newByLabel = {};
+
+        Object.keys(all).forEach(function(key) {
+            var d = all[key]; if (!d) return;
+            var lbl = d.label || d.keyword || '_default';
+            if (_shownAlertKeys.has(key)) return;
+            _shownAlertKeys.add(key);
+            if ((d.at||0) < _initAt - 60000) return;
+
+            var newTids = new Set((d.itemRows||[]).map(function(r){ return String(r.tid||''); }).filter(Boolean));
+
+            // 새 스캔에 없는 기존 항목 → 블러, 다시 있는 항목 → 블러 해제
+            Object.keys(_wItemCache).forEach(function(tid) {
+                if (_wItemCache[tid].label !== lbl) return;
+                if (!newTids.has(tid)) { _wGone.add(tid); }
+                else { _wGone.delete(tid); }
+            });
+
+            var _allKws = (d.keyword||'').split(',').map(function(k){ return k.trim(); }).filter(Boolean);
+            var ts = d.at || Date.now();
+            var timeStr = String(new Date(ts).getHours()).padStart(2,'0')+':'+String(new Date(ts).getMinutes()).padStart(2,'0')+':'+String(new Date(ts).getSeconds()).padStart(2,'0');
+            var newItems = [];
+
+            (d.itemRows||[]).forEach(function(r) {
+                var tid = String(r.tid||''); if (!tid) return;
+                if (_wRemovedTids.has(tid)) return; // 처리완료로 자동 제거된 건은 재추가 안 함
+                var it = {tid:r.tid||'',t:r.t||r.title||'',key:r.key||'',p:r.price||0};
+                var matched = _allKws.find(function(kw){ return kw && (it.t||'').toLowerCase().indexOf(kw.toLowerCase())!==-1; });
+                it._keyword = matched || '';
+                if (!_wItemCache[tid]) {
+                    _wItemCache[tid] = { it:it, label:lbl, time:timeStr };
+                    if (!window._wAiType[tid]) newItems.push(it);
+                }
+            });
+
+            if (!newByLabel[lbl]) newByLabel[lbl] = [];
+            newByLabel[lbl] = newByLabel[lbl].concat(newItems);
+            needRebuild = true;
+        });
+
+        if (needRebuild) {
+            _rebuildWatchPanel();
+            Object.keys(newByLabel).forEach(function(lbl) {
+                if (newByLabel[lbl].length && typeof _aiClassifyWatchItems === 'function') {
+                    _aiClassifyWatchItems(newByLabel[lbl], lbl);
+                }
+            });
+        }
+    }
+
+    // 비거래 감지: 마지막으로 받은 것 "이후 새 것만" 받아옴 → 이미 받은 50건을 재다운하지 않음 (Firebase 비용↓)
+    var _lastWatchAlertKey = '';
+    function _pollWatchAlertsNew() {
+        _monGetToken().then(function(tok) {
+            var url = _MON_FB + '/imi_watch_alerts.json?orderBy=' + encodeURIComponent('"$key"');
+            url += _lastWatchAlertKey ? ('&startAt="' + _lastWatchAlertKey + '"') : '&limitToLast=20';
+            if (tok) url += '&auth=' + tok;
+            return fetch(url, { cache: 'no-store' });
+        }).then(function(r) { return (r && r.ok) ? r.json() : null; }).then(function(all) {
+            if (!all || typeof all !== 'object') return;
+            var keys = Object.keys(all).sort();
+            if (keys.length) _lastWatchAlertKey = keys[keys.length - 1]; // 다음엔 이 이후만
+            _processWatchAlerts(all); // 이미 본 key는 _shownAlertKeys로 내부에서 건너뜀
+        }).catch(function(){});
+    }
+    // 폴링 주기를 "비거래 규칙의 스캔 주기"에 맞춤 → 봇이 그 주기로만 감지하므로 중간 헛확인 제거
+    function _watchPollMs() {
+        var min = Infinity;
+        if (typeof _botRules !== 'undefined' && Array.isArray(_botRules)) {
+            _botRules.forEach(function(r) {
+                if (r && r.enabled && r.type === 'watch') {
+                    var s = parseInt(r.scanInterval) || 300;
+                    if (s < min) min = s;
+                }
+            });
+        }
+        if (!isFinite(min)) min = 300;        // 규칙 없으면 기본 300초
+        return Math.max(30, min) * 1000;       // 규칙 주기, 최소 30초 하한
+    }
+    // 실시간 푸시 (감지 즉시) — 봇이 imi_watch_alerts에 쓰는 순간 받음
+    _fbStream('imi_watch_alerts', function(node) { _processWatchAlerts(node); });
+    // 백업 폴링 (스트림 끊겼을 때 대비, 규칙 주기마다 새 것만)
+    (function _scheduleWatchPoll() {
+        _pollWatchAlertsNew();
+        setTimeout(_scheduleWatchPoll, _watchPollMs());
+    })();
+
+
+    // 3초마다 실존 여부 체크 → 비거래는 블러, 거래번호 배너는 즉시 제거
+    var _wCheckQueue = [];
+    var _wChecking = false;
+    function _wCheckNext() {
+        if (_wChecking) return;
+        // 거래번호 배너 tid를 우선 체크 (물품 삭제 시 빨리 없애야 함)
+        var bannerTids = (typeof window._getWatchBannerTids === 'function') ? window._getWatchBannerTids() : [];
+        var watchTids = Object.keys(_wItemCache).filter(function(tid){ return !_wGone.has(tid); });
+        var allTids = bannerTids.slice();
+        watchTids.forEach(function(t){ if (allTids.indexOf(t) < 0) allTids.push(t); });
+        if (!allTids.length) return;
+        if (!_wCheckQueue.length) _wCheckQueue = allTids.slice();
+        var tid = _wCheckQueue.shift();
+        if (!tid) return;
+        _wChecking = true;
+        fetch('http://1.221.202.77:20002/check_item.php?tid=' + encodeURIComponent(tid), { cache: 'no-store' })
+            .then(function(r){ return r.json(); })
+            .then(function(data) {
+                if (data.exists === false) {
+                    // 비거래 패널: 블러
+                    if (_wItemCache[tid] && !_wGone.has(tid)) { _wGone.add(tid); _rebuildWatchPanel(); }
+                    // 거래번호 배너: 즉시 제거
+                    if (typeof window._removeWatchBannerTid === 'function') window._removeWatchBannerTid(tid);
+                }
+                _wChecking = false;
+            })
+            .catch(function(){ _wChecking = false; });
+    }
+    setInterval(_wCheckNext, 3000);
+
+    // 초기화 훅
+    window._wWatchClearHook = function() {
+        Object.keys(_wItemCache).forEach(function(k){ delete _wItemCache[k]; });
+        _wGone.clear(); window._wAiType = {}; _wRemovedTids.clear();
+        _shownAlertKeys = new Set();
+    };
+
+    // 처리완료/삭제/제외된 비거래는 일정 시간(60초) 후 자동 제거 — 미처리 건만 남김
+    var _WATCH_DONE_TTL = 60000;
+    setInterval(function() {
+        var content = document.getElementById('monhwWatchContent');
+        if (!content) return;
+        var now = Date.now();
+        var toRemove = [];
+        content.querySelectorAll('[data-item-tid]').forEach(function(row) {
+            if (!(row._autoGone || row._filterDone)) { row._doneAt = 0; return; } // 미처리 → 유지
+            if (!row._doneAt) { row._doneAt = now; return; }                       // 막 처리됨 → 시작시각 기록
+            if (now - row._doneAt >= _WATCH_DONE_TTL) {
+                var tid = row.getAttribute('data-item-tid');
+                if (tid) toRemove.push(tid);
+            }
+        });
+        if (toRemove.length) {
+            toRemove.forEach(function(tid) {
+                delete _wItemCache[tid];
+                _wGone.delete(tid);
+                if (window._wAiType) delete window._wAiType[tid];
+                _wRemovedTids.add(tid);
+            });
+            _rebuildWatchPanel();
+        }
+    }, 10000);
+
+    // 비거래: 살아있는 항목의 실존 여부를 3초마다 직접 확인 → 사이트에서 삭제되면 즉시 '물품 삭제됨' 블러
+    // (기존엔 봇의 카테고리 재스캔에만 의존 → 항목만 빠진 새 알림이 안 오면 영영 블러 안 됨. 사기글과 동일하게 직접 확인)
+    var _wCheckQueue = [];
+    var _wChecking = false;
+    function _wCheckNext() {
+        if (_wChecking) return;
+        var content = document.getElementById('monhwWatchContent');
+        if (!content) return;
+        var rows = content.querySelectorAll('[data-item-tid]');
+        var activeTids = [];
+        rows.forEach(function(row) {
+            if (!row._autoGone && !row._filterDone) {
+                var tid = row.getAttribute('data-item-tid');
+                if (tid) activeTids.push(tid);
+            }
+        });
+        if (!activeTids.length) return;
+        if (!_wCheckQueue.length) _wCheckQueue = activeTids.slice();
+        var tid = _wCheckQueue.shift();
+        if (!tid) return;
+        _wChecking = true;
+        fetch('http://1.221.202.77:20002/check_item.php?tid=' + encodeURIComponent(tid), { cache: 'no-store' })
+            .then(function(r){ return r.json(); })
+            .then(function(data) {
+                if (data && data.exists === false) {
+                    _wGone.add(tid);                                   // 재생성 시에도 블러 유지
+                    if (typeof _monhwAutoMarkGone === 'function') _monhwAutoMarkGone(tid);
+                }
+                _wChecking = false;
+            })
+            .catch(function(){ _wChecking = false; });
+    }
+    setInterval(_wCheckNext, 3000);
+})();
+
+// 거래번호 노출 배너 — Firebase에서 직접 구독 (봇이 씀) + 2초 빠른 폴링
+function _pollWatchBanner() {
+    _mDb.ref('imi_watch_banner').once('value', function(snap) {
+        if (typeof window._syncWatchBannerFromData === 'function') {
+            window._syncWatchBannerFromData(snap.val() || {});
+        }
+    });
+}
+_pollWatchBanner();
+setInterval(_pollWatchBanner, 10000);
 
 // 전체 필터제외 버튼 — 이벤트 위임 (fraudDropPanel 카드 헤더)
 document.addEventListener('click', function(e) {
@@ -1166,7 +1600,7 @@ document.addEventListener('click', function(e) {
     bkBtns.forEach(function(b) { b.click(); });
 });
 
-// 필터제외 버튼 — 이벤트 위임 (fraudDropPanel 내)
+// 필터제외 버튼 — 이벤트 위임 (모니터링 현황 패널 포함)
 document.addEventListener('click', function(e) {
     var btn = e.target.closest('[data-bk]');
     if (!btn) return;
@@ -1174,20 +1608,55 @@ document.addEventListener('click', function(e) {
     var monItems    = document.getElementById('monitorAlertItems');
     var toastsEl    = document.getElementById('_imi_fraud_toasts');
     var watchToasts = document.getElementById('_imi_watch_toasts');
-    if (!(fraudPanel && fraudPanel.contains(btn)) && !(monItems && monItems.contains(btn)) && !(toastsEl && toastsEl.contains(btn)) && !(watchToasts && watchToasts.contains(btn))) return;
+    var monhwFraud  = document.getElementById('monhwFraudContent');
+    var monhwWatch  = document.getElementById('monhwWatchContent');
+    if (!(fraudPanel  && fraudPanel.contains(btn))  &&
+        !(monItems    && monItems.contains(btn))     &&
+        !(toastsEl    && toastsEl.contains(btn))     &&
+        !(watchToasts && watchToasts.contains(btn))  &&
+        !(monhwFraud  && monhwFraud.contains(btn))   &&
+        !(monhwWatch  && monhwWatch.contains(btn))) return;
     var key   = btn.getAttribute('data-bk');
     var title = btn.getAttribute('data-title') || '';
     var tid   = btn.getAttribute('data-tid') || '';
     var price = parseInt(btn.getAttribute('data-price') || 0) || 0;
     var blockType = btn.getAttribute('data-bktype') || 'fraud';
-    db.ref('/imi_blocked').once('value', function(snap) {
+
+    // AI 학습 피드백 — 비거래 현황 패널의 배지 종류에 따라 패턴 저장
+    if (blockType === 'watch' && title) {
+        var _clickedRow = btn.closest('[data-item-tid]') || btn.parentNode.parentNode;
+        var _aiBadge = _clickedRow && _clickedRow.querySelector('[data-ai-badge]');
+        if (_aiBadge) {
+            var _badgeType = _aiBadge.getAttribute('data-ai-badge');
+            // 비거래 배지 → 비거래확정 패턴 저장
+            // 확인필요 배지에서 필터제외 → 정상 물품 패턴 저장
+            _saveWatchFeedback(title, _badgeType === '비거래' ? '비거래확정' : '정상물품');
+        }
+    }
+
+    // 즉시 UI 반영: 캐시 업데이트 + 현황 패널 행 흐림 + 처리완료 배지
+    _blockedKeysCache.add(String(key));
+    ['monhwFraudContent','monhwWatchContent'].forEach(function(pid){
+        var panel = document.getElementById(pid);
+        if (!panel) return;
+        panel.querySelectorAll('[data-bk="'+key+'"]').forEach(function(b){
+            var row = b.closest('[data-item-tid]') || b.parentNode.parentNode;
+            if (row && !row._filterDone) {
+                row._filterDone = true;
+                _monhwRowDoneOverlay(row, '✅ 처리완료');
+            }
+            b.disabled = true; b.textContent = '제외됨'; b.style.opacity = '0.4';
+        });
+    });
+
+    _mDb.ref('/imi_blocked').once('value', function(snap) {
         var list = snap.val() || [];
         if (!Array.isArray(list)) list = [];
         var keys = list.map(function(i) { return typeof i === 'object' ? i.key : i; });
         if (!keys.includes(key)) {
             var addedBy = (typeof _currentUser !== 'undefined' && _currentUser && _currentUser.name) ? _currentUser.name : '';
             list.push({ key: key, title: title, tid: tid, price: price, addedBy: addedBy, addedAt: Date.now(), type: blockType });
-            db.ref('/imi_blocked').set(list);
+            _mDb.ref('/imi_blocked').set(list);
         }
         btn.disabled = true;
         btn.textContent = '제외됨';
@@ -1214,7 +1683,9 @@ document.getElementById('monitorLogListW').addEventListener('click', function(e)
     btn.style.color = '#22c55e';
     btn.style.opacity = '0.4';
     btn.style.cursor = 'default';
-    db.ref('imi_watch_done/' + tid).set({ at: Date.now(), by: by });
+    _mDb.ref('imi_watch_done/' + tid).set({ at: Date.now(), by: by });
+    // 거래번호 노출 배너에서도 즉시 제거 (폴링 대기 없이)
+    if (typeof window._removeWatchBannerTid === 'function') window._removeWatchBannerTid(tid);
 });
 
 // 필터제외 버튼 — 이벤트 위임 (log-box 안 #monitorLogList에 직접 위임, stopPropagation 우회)
@@ -1225,19 +1696,22 @@ function _handleLogBkClick(e) {
     var title = btn.getAttribute('data-logtitle') || '';
     var tid   = btn.getAttribute('data-logtid') || '';
     var price = parseInt(btn.getAttribute('data-logprice') || 0) || 0;
-    db.ref('/imi_blocked').once('value', function(snap) {
+    _mDb.ref('/imi_blocked').once('value', function(snap) {
         var list = snap.val() || [];
         if (!Array.isArray(list)) list = [];
         var keys = list.map(function(i) { return typeof i === 'object' ? i.key : i; });
         if (!keys.includes(key)) {
             var addedBy = (typeof _currentUser !== 'undefined' && _currentUser && _currentUser.name) ? _currentUser.name : '';
             list.push({ key: key, title: title, tid: tid, price: price, addedBy: addedBy, addedAt: Date.now(), type: 'fraud' });
-            db.ref('/imi_blocked').set(list);
+            _mDb.ref('/imi_blocked').set(list);
         }
         btn.disabled = true;
         btn.textContent = '제외됨';
         btn.style.opacity = '0.4';
         btn.style.cursor = 'default';
+        // 오른쪽 패널 제외 탭 자동 전환 및 갱신
+        var fromFraud = document.getElementById('monitorLogList') && document.getElementById('monitorLogList').contains(btn);
+        if (typeof switchLogExTab === 'function') switchLogExTab(fromFraud ? 1 : 2);
     });
 }
 document.getElementById('monitorLogList').addEventListener('click', _handleLogBkClick);
@@ -1249,7 +1723,7 @@ var _logFullModeW = false;
 
 // 비거래 처리완료 상태 (Firebase imi_watch_done 동기화)
 var _watchDoneSet = {};
-db.ref('imi_watch_done').on('value', function(snap) {
+_mDb.ref('imi_watch_done').on('value', function(snap) {
     _watchDoneSet = snap.val() || {};
     document.querySelectorAll('[data-logdone]').forEach(function(btn) {
         var tid = btn.getAttribute('data-logdone');
@@ -1268,7 +1742,12 @@ db.ref('imi_watch_done').on('value', function(snap) {
 });
 
 function openLogPanel() {
-    document.getElementById('logPanel').classList.remove('hidden');
+    if (typeof _imiNavSwitch === 'function') _imiNavSwitch('log');
+}
+function closeLogPanel() {
+    document.getElementById('logPanel').classList.add('hidden');
+}
+function _initLogPanel() {
     _logFullMode = false; _logFullModeW = false;
     ['logFullDayBtnWrap','logFullDayBtnWrapW'].forEach(function(wid) {
         var w = document.getElementById(wid);
@@ -1279,22 +1758,38 @@ function openLogPanel() {
     var btnW = document.getElementById('logFullDayBtnW');
     if (btnW) { btnW.textContent = '📅 24시간 전체 기록 불러오기'; btnW.disabled = false; btnW.style.opacity = '1'; btnW.onclick = loadFullDayLogW; }
     switchLogTab(1);
-}
-function closeLogPanel() {
-    document.getElementById('logPanel').classList.add('hidden');
+    switchLogExTab(1);
 }
 function switchLogTab(n) {
-    [1,2,3,4,5].forEach(function(i) {
+    [1,2,5].forEach(function(i) {
         var t = document.getElementById('logTab'+i);
         var c = document.getElementById('logTabContent'+i);
         if (t) t.classList.toggle('mon-tab-active', i === n);
         if (c) c.style.display = i === n ? '' : 'none';
     });
-    if (n === 1) { _logFullMode  = false; loadMonitorLog(false); }
-    if (n === 2) { _logFullModeW = false; loadWatchLog(false); }
-    if (n === 3) loadBlockedFraud();
-    if (n === 4) loadBlockedWatch();
-    if (n === 5) loadStatsTab();
+    // 24시간 버튼: 현재 탭에 맞는 버튼만 표시
+    var w1 = document.getElementById('logFullDayBtnWrap');
+    var w2 = document.getElementById('logFullDayBtnWrapW');
+    if (w1) w1.style.display = (n === 1 && _isBotPrivileged()) ? '' : 'none';
+    if (w2) w2.style.display = (n === 2 && _isBotPrivileged()) ? '' : 'none';
+    if (n === 1) { _logFullMode  = false; loadMonitorLog(false); switchLogExTab(1); }
+    if (n === 2) { _logFullModeW = false; loadWatchLog(false); switchLogExTab(2); }
+    if (n === 5 && typeof _imiNavSwitch === 'function') { _imiNavSwitch('stats'); }
+}
+function switchLogExTab(n) {
+    [1,2].forEach(function(i) {
+        var t = document.getElementById('logExTab'+i);
+        var c = document.getElementById('logTabContent'+(i+2));
+        if (t) t.classList.toggle('mon-tab-active', i === n);
+        if (c) c.style.display = i === n ? '' : 'none';
+    });
+    // 전체 해제 버튼 교체
+    var clearBtn = document.getElementById('logExClearBtn');
+    if (clearBtn) {
+        clearBtn.onclick = n === 1 ? clearAllBlockedFraud : clearAllBlockedWatch;
+    }
+    if (n === 1) loadBlockedFraud();
+    if (n === 2) loadBlockedWatch();
 }
 
 function loadFullDayLog() {
@@ -1336,10 +1831,10 @@ function _loadLogByType(fullDay, isWatch) {
 
     var cutoff24 = Date.now() - 86400000;
     var histRef = fullDay
-        ? db.ref('/monitor_history').limitToLast(2000)
-        : db.ref('/monitor_history').limitToLast(500);
+        ? _mDb.ref('/monitor_history').limitToLast(2000)
+        : _mDb.ref('/monitor_history').limitToLast(500);
 
-    db.ref('/imi_blocked').once('value', function(blockedSnap) {
+    _mDb.ref('/imi_blocked').once('value', function(blockedSnap) {
         var blockedList = blockedSnap.val() || [];
         if (!Array.isArray(blockedList)) blockedList = [];
         var blockedSet = {};
@@ -1526,7 +2021,7 @@ function _loadLogByType(fullDay, isWatch) {
 
 // ===== 차단 목록 렌더 (type: 'fraud'=사기글, 'watch'=비거래, 없으면 fraud로 간주) =====
 function _renderBlockedByType(type, containerId, emptyId) {
-    db.ref('/imi_blocked').once('value', function(snap) {
+    _mDb.ref('/imi_blocked').once('value', function(snap) {
         var list = snap.val() || [];
         if (!Array.isArray(list)) list = [];
         var filtered = list.filter(function(item) {
@@ -1549,14 +2044,14 @@ function _renderBlockedByType(type, containerId, emptyId) {
             var addedBy = typeof item === 'object' ? (item.addedBy || '') : '';
             var addedAt = typeof item === 'object' && item.addedAt ? new Date(item.addedAt).toLocaleString('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
             var subText = tid ? ('#' + tid) : key;
-            return '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;border:1.5px solid var(--border-ui);border-radius:8px;margin-bottom:6px;">'
+            return '<div style="display:flex;align-items:center;gap:10px;padding:6px 12px;border:1.5px solid var(--border-ui);border-radius:8px;margin-bottom:6px;">'
                 + '<div style="flex:1;min-width:0;">'
-                + '<div style="display:flex;align-items:center;gap:6px;">'
-                + (title ? '<div style="font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;">' + _esc(title) + '</div>' : '')
-                + (price ? '<div style="font-size:11px;font-weight:900;color:#ef4444;flex-shrink:0;">' + Number(price).toLocaleString() + '원</div>' : '')
-                + '</div>'
+                + (title ? '<div style="font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + _esc(title) + '</div>' : '')
                 + '<div style="font-size:10px;opacity:0.45;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + _esc(subText) + '</div>'
-                + (addedBy ? '<div style="font-size:10px;opacity:0.45;margin-top:2px;">✍️ ' + _esc(addedBy) + (addedAt ? ' · ' + addedAt : '') + '</div>' : '')
+                + '</div>'
+                + '<div style="flex-shrink:0;text-align:right;line-height:1.5;">'
+                + (price ? '<div style="font-size:11px;font-weight:900;color:#ef4444;">' + Number(price).toLocaleString() + '원</div>' : '')
+                + (addedBy ? '<div style="font-size:9.5px;opacity:0.5;white-space:nowrap;">✍️ ' + _esc(addedBy) + (addedAt ? ' · ' + addedAt : '') + '</div>' : '')
                 + '</div>'
                 + '<button onclick="unblockItem(\'' + _esc(key.replace(/'/g,'\\\'')) + '\')" style="font-size:10px;padding:3px 10px;border-radius:5px;border:1px solid #22c55e;color:#22c55e;background:none;cursor:pointer;font-weight:700;flex-shrink:0;">제외 해제</button>'
                 + '</div>';
@@ -1569,14 +2064,14 @@ function loadBlockedItems() { loadBlockedFraud(); }
 
 // ===== 개별 차단 해제 (key 기반) =====
 function unblockItem(key) {
-    db.ref('/imi_blocked').once('value', function(snap) {
+    _mDb.ref('/imi_blocked').once('value', function(snap) {
         var list = snap.val() || [];
         if (!Array.isArray(list)) list = [];
         var newList = list.filter(function(item) {
             var k = typeof item === 'object' ? item.key : item;
             return k !== key;
         });
-        db.ref('/imi_blocked').set(newList, function() {
+        _mDb.ref('/imi_blocked').set(newList, function() {
             loadBlockedFraud();
             loadBlockedWatch();
             loadMonitorLog();
@@ -1587,74 +2082,58 @@ function unblockItem(key) {
 // ===== 전체 차단 해제 (타입별) =====
 function clearAllBlockedFraud() {
     if (!confirm('사기글 필터제외 목록을 전체 삭제하시겠습니까?')) return;
-    db.ref('/imi_blocked').once('value', function(snap) {
+    _mDb.ref('/imi_blocked').once('value', function(snap) {
         var list = snap.val() || [];
         if (!Array.isArray(list)) list = [];
         var newList = list.filter(function(item) {
             var t = typeof item === 'object' ? (item.type || 'fraud') : 'fraud';
             return t !== 'fraud';
         });
-        db.ref('/imi_blocked').set(newList, function() { loadBlockedFraud(); loadMonitorLog(); });
+        _mDb.ref('/imi_blocked').set(newList, function() { loadBlockedFraud(); loadMonitorLog(); });
     });
 }
 function clearAllBlockedWatch() {
     if (!confirm('비거래 필터제외 목록을 전체 삭제하시겠습니까?')) return;
-    db.ref('/imi_blocked').once('value', function(snap) {
+    _mDb.ref('/imi_blocked').once('value', function(snap) {
         var list = snap.val() || [];
         if (!Array.isArray(list)) list = [];
         var newList = list.filter(function(item) {
             var t = typeof item === 'object' ? (item.type || 'fraud') : 'fraud';
             return t !== 'watch';
         });
-        db.ref('/imi_blocked').set(newList, function() { loadBlockedWatch(); });
+        _mDb.ref('/imi_blocked').set(newList, function() { loadBlockedWatch(); });
     });
 }
 function clearAllBlocked() { clearAllBlockedFraud(); }
 
 // ===== 감지 통계 =====
-var _statsType = 'fraud';
 
 function loadStatsTab() {
     var today = new Date();
     var pad = function(n) { return String(n).padStart(2,'0'); };
     var todayStr = today.getFullYear() + '-' + pad(today.getMonth()+1) + '-' + pad(today.getDate());
     var monthStr = today.getFullYear() + '-' + pad(today.getMonth()+1);
-    var dp = document.getElementById('statsDayPicker');
-    var mp = document.getElementById('statsMonthPicker');
-    if (dp && !dp.value) dp.value = todayStr;
-    if (mp && !mp.value) mp.value = monthStr;
-    _switchStatsType(_statsType);
+    ['watchDayPicker','fraudDayPicker'].forEach(function(id) { var el=document.getElementById(id); if(el&&!el.value) el.value=todayStr; });
+    ['watchMonthPicker','fraudMonthPicker'].forEach(function(id) { var el=document.getElementById(id); if(el&&!el.value) el.value=monthStr; });
+    _loadWatchStats(
+        (document.getElementById('watchDayPicker')||{}).value || todayStr,
+        (document.getElementById('watchMonthPicker')||{}).value || monthStr
+    );
+    _loadFraudStats(
+        (document.getElementById('fraudDayPicker')||{}).value || todayStr,
+        (document.getElementById('fraudMonthPicker')||{}).value || monthStr
+    );
 }
 
-function _switchStatsType(type) {
-    _statsType = type;
-    var w = document.getElementById('statsTypeWatch');
-    var f = document.getElementById('statsTypeFraud');
-    if (w) { w.style.background = type==='watch'?'#22c55e':'none'; w.style.color = type==='watch'?'#000':'#94a3b8'; w.style.border = '1px solid '+(type==='watch'?'#22c55e':'#334155'); }
-    if (f) { f.style.background = type==='fraud'?'#ef4444':'none'; f.style.color = type==='fraud'?'#fff':'#94a3b8'; f.style.border = '1px solid '+(type==='fraud'?'#ef4444':'#334155'); }
-    _renderStatsForType(type);
-}
-
-function _onStatsDateChange()  { _renderStatsForType(_statsType); }
-function _onStatsMonthChange() { _renderStatsForType(_statsType); }
-
-function _renderStatsForType(type) {
-    var dp = document.getElementById('statsDayPicker');
-    var mp = document.getElementById('statsMonthPicker');
-    var dateStr  = dp ? dp.value : '';
-    var monthStr = mp ? mp.value : '';
-    var dc = document.getElementById('statsDayChart');
-    var mc = document.getElementById('statsMonthChart');
-    if (dc) dc.innerHTML = '<div style="text-align:center;padding:20px 0;font-size:11px;opacity:0.4;">불러오는 중...</div>';
-    if (mc) mc.innerHTML = '';
-    if (type === 'watch') _loadWatchStats(dateStr, monthStr);
-    else _loadFraudStats(dateStr, monthStr);
-}
+function _onWatchDateChange()  { var dp=document.getElementById('watchDayPicker'); var mp=document.getElementById('watchMonthPicker'); _loadWatchStats(dp?dp.value:'', mp?mp.value:''); }
+function _onWatchMonthChange() { var dp=document.getElementById('watchDayPicker'); var mp=document.getElementById('watchMonthPicker'); _loadWatchStats(dp?dp.value:'', mp?mp.value:''); }
+function _onFraudDateChange()  { var dp=document.getElementById('fraudDayPicker'); var mp=document.getElementById('fraudMonthPicker'); _loadFraudStats(dp?dp.value:'', mp?mp.value:''); }
+function _onFraudMonthChange() { var dp=document.getElementById('fraudDayPicker'); var mp=document.getElementById('fraudMonthPicker'); _loadFraudStats(dp?dp.value:'', mp?mp.value:''); }
 
 // 비거래 통계 — imi_watch_alerts(오늘) + imi_watch_stats(과거), TID 중복제거
 function _loadWatchStats(dateStr, monthStr) {
     var pad = function(n) { return String(n).padStart(2,'0'); };
-    db.ref('imi_watch_alerts').limitToLast(100).once('value', function(alertsSnap) {
+    _mDb.ref('imi_watch_alerts').limitToLast(100).once('value', function(alertsSnap) {
         var alerts = alertsSnap.val() || {};
         // dateStr+hour별 첫 감지 시각 기준으로 TID 배정 (중복 제거)
         var tidFirstSeen = {}; // tid → { dStr, hStr, at }
@@ -1682,7 +2161,7 @@ function _loadWatchStats(dateStr, monthStr) {
             }
         });
         // 과거 데이터(imi_watch_stats) 보완 — 오늘 데이터 없는 날에 한해 사용
-        db.ref('/imi_watch_stats').once('value', function(statsSnap) {
+        _mDb.ref('/imi_watch_stats').once('value', function(statsSnap) {
             var allStats = statsSnap.val() || {};
             // 선택 날짜가 과거인 경우 imi_watch_stats 사용
             var histDay = allStats[dateStr] || {};
@@ -1699,15 +2178,15 @@ function _loadWatchStats(dateStr, monthStr) {
                     monthDayCounts[day] = t;
                 }
             });
-            _renderBarChart('statsDayChart', hourCounts, '#22c55e');
-            _renderLineChart('statsMonthChart', monthDayCounts, '#22c55e');
+            _renderBarChart('watchDayChart', hourCounts, '#22c55e');
+            _renderLineChart('watchMonthChart', monthDayCounts, '#22c55e');
         });
     });
 }
 
 // 사기글 통계 — imi_fraud_stats (미리 집계된 데이터)
 function _loadFraudStats(dateStr, monthStr) {
-    db.ref('/imi_fraud_stats').once('value', function(statsSnap) {
+    _mDb.ref('/imi_fraud_stats').once('value', function(statsSnap) {
         var allStats = statsSnap.val() || {};
         var hourCounts = allStats[dateStr] || {};
         var monthDayCounts = {};
@@ -1718,8 +2197,8 @@ function _loadFraudStats(dateStr, monthStr) {
             Object.values(allStats[dStr]).forEach(function(v) { t += (v || 0); });
             monthDayCounts[day] = t;
         });
-        _renderBarChart('statsDayChart', hourCounts, '#ef4444');
-        _renderLineChart('statsMonthChart', monthDayCounts, '#ef4444');
+        _renderBarChart('fraudDayChart', hourCounts, '#ef4444');
+        _renderLineChart('fraudMonthChart', monthDayCounts, '#ef4444');
     });
 }
 
@@ -1820,7 +2299,7 @@ function _hideChartTip() {
 var _botRules = [];
 var _botRuleEditingId = null;
 
-db.ref('/imi_rules').on('value', function(snap) {
+_mDb.ref('/imi_rules').on('value', function(snap) {
     var val = snap.val();
     _botRules = Array.isArray(val) ? val.filter(Boolean)
               : (val && typeof val === 'object') ? Object.values(val).filter(Boolean)
@@ -1842,41 +2321,48 @@ function _renderBotRuleList() {
         list.innerHTML = '<div style="text-align:center;padding:20px 0;opacity:0.35;font-size:12px;">등록된 사기글 규칙이 없습니다</div>';
         return;
     }
+    var bf = 'calc(var(--base-font,20px)*';
     list.innerHTML = fraudRules.map(function(r) {
         var runStatus = (_botStatus && _botStatus.rules) ? _botStatus.rules.find(function(sr){ return sr.id === r.id; }) : null;
         var isRunning = !!(runStatus && runStatus.tabOpen);
-        var runColor  = isRunning ? '#22c55e' : '#94a3b8';
-        var runLabel  = isRunning ? '● 감시중' : '■ 대기';
+        var isEnabled = !!r.enabled;
+        var runColor  = isRunning ? '#22c55e' : (isEnabled ? '#f59e0b' : '#94a3b8');
+        var runLabel  = isRunning ? '● 감시중' : (isEnabled ? '○ 감시대기' : '■ 대기');
         var typeTag = r.type === 'watch'
-            ? '<span style="font-size:9px;font-weight:900;color:#22c55e;border:1px solid #22c55e;border-radius:4px;padding:1px 5px;flex-shrink:0;">📦 비거래</span>'
-            : '<span style="font-size:9px;font-weight:900;color:#ef4444;border:1px solid #ef4444;border-radius:4px;padding:1px 5px;flex-shrink:0;">🚨 사기글</span>';
+            ? '<span style="font-size:'+bf+'0.5);font-weight:900;color:#22c55e;border:1px solid #22c55e;border-radius:4px;padding:1px 5px;flex-shrink:0;">📦 비거래</span>'
+            : '<span style="font-size:'+bf+'0.5);font-weight:900;color:#ef4444;border:1px solid #ef4444;border-radius:4px;padding:1px 5px;flex-shrink:0;">🚨 사기글</span>';
+        var kwTags = r.keyword ? r.keyword.split(',').map(function(k){ k=k.trim(); return k?'<span class="mon-tag">🔑 '+_esc(k)+'</span>':''; }).join('') : '';
+        var subKwTags = r.subKeyword ? r.subKeyword.split(',').map(function(k){ k=k.trim(); return k?'<span class="mon-tag" style="color:#7dd3fc;border-color:#0284c7;">🔗 AND: '+_esc(k)+'</span>':''; }).join('') : '';
+        var exKwTags = r.excludeKeyword ? r.excludeKeyword.split(',').map(function(k){ k=k.trim(); return k?'<span class="mon-tag">🚫 '+_esc(k)+'</span>':''; }).join('') : '';
+        var statusEl = canEdit
+            ? '<button onclick="toggleBotRuleEnabled(\''+_esc(r.id)+'\','+(!isEnabled)+')" title="'+(isEnabled?'클릭 → 비활성화':'클릭 → 활성화')+'" style="font-size:'+bf+'0.55);font-weight:900;color:'+runColor+';background:none;border:1.5px solid '+runColor+';border-radius:5px;cursor:pointer;padding:2px 7px;flex-shrink:0;transition:0.15s;">'+runLabel+'</button>'
+            : '<span style="font-size:'+bf+'0.55);font-weight:900;color:'+runColor+';flex-shrink:0;">'+runLabel+'</span>';
         return '<div style="border:1.5px solid var(--border-ui);border-radius:10px;padding:10px 13px;margin-bottom:6px;background:var(--bg-body);">'
             + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;">'
             + '<div style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'
-            + '<span style="font-size:12px;font-weight:900;">' + _esc(r.name) + '</span>'
+            + '<span style="font-size:'+bf+'0.65);font-weight:900;">' + _esc(r.name) + '</span>'
             + '</div>'
             + typeTag
-            + '<span style="font-size:10px;font-weight:900;color:'+runColor+';flex-shrink:0;">'+runLabel+'</span>'
-            + (canEdit ? '<button onclick="startEditBotRule(\''+_esc(r.id)+'\')" style="font-size:10px;padding:2px 7px;border-radius:5px;border:1.5px solid #f59e0b;color:#f59e0b;background:none;cursor:pointer;flex-shrink:0;">수정</button>' : '')
-            + (canEdit ? '<button onclick="deleteBotRule(\''+_esc(r.id)+'\')" style="font-size:10px;padding:2px 7px;border-radius:5px;border:1.5px solid #ef4444;color:#ef4444;background:none;cursor:pointer;flex-shrink:0;">삭제</button>' : '')
+            + statusEl
+            + (canEdit ? '<button onclick="startEditBotRule(\''+_esc(r.id)+'\')" style="font-size:'+bf+'0.55);padding:2px 7px;border-radius:5px;border:1.5px solid #f59e0b;color:#f59e0b;background:none;cursor:pointer;flex-shrink:0;">수정</button>' : '')
+            + (canEdit ? '<button onclick="deleteBotRule(\''+_esc(r.id)+'\')" style="font-size:'+bf+'0.55);padding:2px 7px;border-radius:5px;border:1.5px solid #ef4444;color:#ef4444;background:none;cursor:pointer;flex-shrink:0;">삭제</button>' : '')
             + '</div>'
             + '<div style="display:flex;flex-wrap:wrap;gap:4px;">'
-            + (r.keyword        ? '<span class="mon-tag">🔑 ' + _esc(r.keyword) + '</span>' : '')
-            + (r.subKeyword     ? '<span class="mon-tag" style="color:#7dd3fc;border-color:#0284c7;">🔗 AND: ' + _esc(r.subKeyword) + '</span>' : '')
+            + kwTags + subKwTags
             + (r.minPrice       ? '<span class="mon-tag">💰 ' + Number(r.minPrice).toLocaleString() + '원↑</span>' : '')
             + (r.maxPrice       ? '<span class="mon-tag">💰 ' + Number(r.maxPrice).toLocaleString() + '원↓</span>' : '')
             + '<span class="mon-tag">⏱ ' + (r.scanInterval || 5) + '초</span>'
-            + (r.excludeKeyword ? '<span class="mon-tag">🚫 ' + _esc(r.excludeKeyword) + '</span>' : '')
+            + exKwTags
             + (r.photoMinPrice   ? '<span class="mon-tag">📸 ' + Number(r.photoMinPrice).toLocaleString() + '원↑</span>' : '')
             + (r.noPhotoMinPrice ? '<span class="mon-tag">📝 ' + Number(r.noPhotoMinPrice).toLocaleString() + '원↑</span>' : '')
             + '</div>'
-            + '<div style="font-size:9.5px;opacity:0.3;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + _esc(r.url || '') + '</div>'
+            + '<div style="font-size:'+bf+'0.5);opacity:0.3;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + _esc(r.url || '') + '</div>'
             + '</div>';
     }).join('');
 }
 
 function _saveBotRules(rules) {
-    db.ref('/imi_rules').set(rules);
+    _mDb.ref('/imi_rules').set(rules);
 }
 
 function toggleBotRuleEnabled(id, enabled) {
@@ -1896,6 +2382,7 @@ function deleteBotRule(id) {
 function startEditBotRule(id) {
     var r = _botRules.find(function(r) { return r.id === id; });
     if (!r) return;
+    if (typeof switchMonBotTab === 'function') switchMonBotTab(1);
     _botRuleEditingId = id;
     document.getElementById('brName').value     = r.name || '';
     document.getElementById('brUrl').value      = r.url  || '';
@@ -1979,14 +2466,14 @@ function addBotRule() {
 var _watchedTids = {};
 var _watchEditingKey = null;
 
-db.ref('/watched_tids').on('value', function(snap) {
+_mDb.ref('/watched_tids').on('value', function(snap) {
     _watchedTids = snap.val() || {};
     _renderWatchedTids();
     // watched_tids에 없는 고아 배너 즉시 정리
-    db.ref('/imi_watch_banner').once('value', function(bSnap) {
+    _mDb.ref('/imi_watch_banner').once('value', function(bSnap) {
         var banners = bSnap.val() || {};
         Object.keys(banners).forEach(function(bKey) {
-            if (!_watchedTids[bKey]) db.ref('/imi_watch_banner/' + bKey).set(null);
+            if (!_watchedTids[bKey]) _mDb.ref('/imi_watch_banner/' + bKey).set(null);
         });
     });
 });
@@ -1997,7 +2484,7 @@ function addWatchedTid() {
     if (!tid || !/^\d+$/.test(tid)) { alert('거래번호는 숫자만 입력하세요.'); return; }
 
     if (_watchEditingKey) {
-        db.ref('/watched_tids/' + _watchEditingKey).update({ tid: tid, label: label, alertSent: false }, function(err) {
+        _mDb.ref('/watched_tids/' + _watchEditingKey).update({ tid: tid, label: label, alertSent: false }, function(err) {
             if (err) { alert('수정 실패: ' + err.message); return; }
             _cancelWatchEdit();
             alert('✅ 수정됐습니다.');
@@ -2011,7 +2498,7 @@ function addWatchedTid() {
     }
     var key = 'wt_' + Date.now();
     var addedBy = (typeof _currentUser !== 'undefined' && _currentUser) ? (_currentUser.name || '') : '';
-    db.ref('/watched_tids/' + key).set({
+    _mDb.ref('/watched_tids/' + key).set({
         tid: tid, label: label, addedBy: addedBy,
         addedAt: Date.now(), alertSent: false
     }, function(err) {
@@ -2025,6 +2512,7 @@ function addWatchedTid() {
 function startEditWatchedTid(key) {
     var v = _watchedTids[key];
     if (!v) return;
+    if (typeof switchMonBotTab === 'function') switchMonBotTab(3);
     _watchEditingKey = key;
     document.getElementById('wtTid').value   = v.tid   || '';
     document.getElementById('wtLabel').value = v.label || '';
@@ -2047,16 +2535,16 @@ function _cancelWatchEdit() {
 
 function deleteWatchedTid(key, tid) {
     if (!confirm('"' + tid + '" 감시를 삭제하시겠습니까?')) return;
-    db.ref('/watched_tids/' + key).set(null, function(err) {
+    _mDb.ref('/watched_tids/' + key).set(null, function(err) {
         if (err) { alert('삭제 실패: ' + err.message); return; }
         // 배너도 같이 제거
-        db.ref('/imi_watch_banner/' + key).set(null);
+        _mDb.ref('/imi_watch_banner/' + key).set(null);
         if (_watchEditingKey === key) _cancelWatchEdit();
     });
 }
 
 function _loadWatchInterval() {
-    db.ref('/tid_watch_interval').once('value', function(snap) {
+    _mDb.ref('/tid_watch_interval').once('value', function(snap) {
         var v = snap.val();
         var el = document.getElementById('wtInterval');
         // 구형 데이터(분)를 초로 자동 변환: 값이 120 이하면 분 단위 레거시
@@ -2070,7 +2558,7 @@ function saveWatchInterval() {
     if (v < 60) v = 60;
     if (v > 3600) v = 3600;
     el.value = v;
-    db.ref('/tid_watch_interval').set(v, function(err) {
+    _mDb.ref('/tid_watch_interval').set(v, function(err) {
         if (err) { alert('저장 실패: ' + err.message); return; }
         var min = Math.floor(v/60), sec = v%60;
         var label = min > 0 ? min + '분' + (sec > 0 ? ' ' + sec + '초' : '') : sec + '초';
@@ -2086,26 +2574,27 @@ function _renderWatchedTids() {
         list.innerHTML = '<div style="text-align:center;padding:16px 0;opacity:0.35;font-size:12px;">등록된 감시 거래번호가 없습니다</div>';
         return;
     }
+    var bf = 'calc(var(--base-font,20px)*';
     entries.sort(function(a, b){ return (b[1].addedAt||0) - (a[1].addedAt||0); });
     list.innerHTML = entries.map(function(e) {
         var k = e[0]; var v = e[1];
         var tid = _esc(String(v.tid || ''));
-        var label = v.label ? ('<span style="font-size:11px;font-weight:700;color:var(--text-main);">' + _esc(v.label) + '</span>') : '';
+        var label = v.label ? ('<span style="font-size:'+bf+'0.6);font-weight:700;color:var(--text-main);">' + _esc(v.label) + '</span>') : '';
         var tidFmt = tid.replace(/(.{4})(?=.)/g, '$1 ');
         var statusColor = v.alertSent ? '#22c55e' : '#f59e0b';
         var statusText  = v.alertSent ? '✅ 노출 감지됨' : '⏳ 감시중';
         var addedAt = v.addedAt ? new Date(v.addedAt).toLocaleString('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
-        return '<div style="border:1.5px solid var(--border-ui);border-radius:10px;padding:10px 13px;margin-bottom:6px;background:var(--bg-body);">'
+        return '<div style="border:1.5px solid var(--border-ui);border-radius:10px;padding:8px 13px;margin-bottom:6px;background:var(--bg-body);">'
             + '<div style="display:flex;align-items:center;gap:8px;">'
-            + '<div style="flex:1;min-width:0;">'
-            + (label ? label + '<br>' : '')
-            + '<span style="font-size:16px;font-weight:900;color:#38bdf8;letter-spacing:0.03em;">#' + tidFmt + '</span>'
+            + '<div style="flex:1;min-width:0;display:flex;align-items:baseline;gap:10px;overflow:hidden;">'
+            + '<span style="font-size:'+bf+'0.8);font-weight:900;color:#38bdf8;letter-spacing:0.03em;white-space:nowrap;flex-shrink:0;">#' + tidFmt + '</span>'
+            + (label ? label : '')
             + '</div>'
-            + '<span style="font-size:10px;font-weight:900;color:' + statusColor + ';flex-shrink:0;">' + statusText + '</span>'
-            + '<button onclick="startEditWatchedTid(\'' + _esc(k) + '\')" style="font-size:10px;padding:2px 7px;border-radius:5px;border:1.5px solid #f59e0b;color:#f59e0b;background:none;cursor:pointer;flex-shrink:0;">수정</button>'
-            + '<button onclick="deleteWatchedTid(\'' + _esc(k) + '\',\'' + tid + '\')" style="font-size:10px;padding:2px 7px;border-radius:5px;border:1.5px solid #ef4444;color:#ef4444;background:none;cursor:pointer;flex-shrink:0;">삭제</button>'
+            + (addedAt ? '<span style="font-size:'+bf+'0.48);opacity:0.4;flex-shrink:0;white-space:nowrap;">' + (v.addedBy ? v.addedBy + ' · ' : '') + addedAt + '</span>' : '')
+            + '<span style="font-size:'+bf+'0.55);font-weight:900;color:' + statusColor + ';flex-shrink:0;">' + statusText + '</span>'
+            + '<button onclick="startEditWatchedTid(\'' + _esc(k) + '\')" style="font-size:'+bf+'0.55);padding:2px 7px;border-radius:5px;border:1.5px solid #f59e0b;color:#f59e0b;background:none;cursor:pointer;flex-shrink:0;">수정</button>'
+            + '<button onclick="deleteWatchedTid(\'' + _esc(k) + '\',\'' + tid + '\')" style="font-size:'+bf+'0.55);padding:2px 7px;border-radius:5px;border:1.5px solid #ef4444;color:#ef4444;background:none;cursor:pointer;flex-shrink:0;">삭제</button>'
             + '</div>'
-            + (addedAt ? '<div style="font-size:9.5px;opacity:0.3;margin-top:3px;">' + (v.addedBy ? v.addedBy + ' · ' : '') + addedAt + '</div>' : '')
             + '</div>';
     }).join('');
 }
@@ -2122,32 +2611,34 @@ function _renderWatchRules() {
         return;
     }
     var canEdit = _isBotPrivileged();
+    var bf = 'calc(var(--base-font,20px)*';
     list.innerHTML = watchRules.map(function(r) {
         var enabled = r.enabled !== false;
         var runStatus = (_botStatus && _botStatus.rules) ? _botStatus.rules.find(function(sr){ return sr.id === r.id; }) : null;
         var tabOpen = !!(runStatus && runStatus.tabOpen);
         var runColor = (enabled && tabOpen) ? '#22c55e' : (enabled ? '#f59e0b' : '#94a3b8');
         var runLabel = (enabled && tabOpen) ? '● 감시중' : (enabled ? '○ 대기' : '■ 비활성');
+        var kwTags = r.keyword ? r.keyword.split(',').map(function(k){ k=k.trim(); return k?'<span class="mon-tag">🔑 '+_esc(k)+'</span>':''; }).join('') : '';
+        var exKwTags = r.excludeKeyword ? r.excludeKeyword.split(',').map(function(k){ k=k.trim(); return k?'<span class="mon-tag" style="color:#f87171;">🚫 '+_esc(k)+'</span>':''; }).join('') : '';
         return '<div style="border:1.5px solid var(--border-ui);border-left:3px solid #22c55e;border-radius:10px;padding:10px 13px;margin-bottom:6px;background:var(--bg-body);">'
             + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;">'
             + '<div style="flex:1;min-width:0;">'
-            + '<span style="font-size:12px;font-weight:900;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;">'+_esc(r.name||'(이름없음)')+'</span>'
+            + '<span style="font-size:'+bf+'0.65);font-weight:900;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;">'+_esc(r.name||'(이름없음)')+'</span>'
             + '</div>'
-            + '<span style="font-size:9px;font-weight:900;color:#22c55e;border:1px solid #22c55e;border-radius:4px;padding:1px 5px;flex-shrink:0;">📦 비거래</span>'
-            + '<span style="font-size:10px;font-weight:900;color:'+runColor+';flex-shrink:0;">'+runLabel+'</span>'
-            + (canEdit?'<button id="wsrtest_'+_esc(r.id)+'" onclick="_testWsrRule(\''+_esc(r.id)+'\')" style="font-size:10px;padding:2px 7px;border-radius:5px;border:1.5px solid var(--active-focus-color);color:var(--active-focus-color);background:none;cursor:pointer;flex-shrink:0;">🔍 테스트</button>':'')
-            + (canEdit?'<button onclick="_editWsrRule(\''+_esc(r.id)+'\')" style="font-size:10px;padding:2px 7px;border-radius:5px;border:1.5px solid #f59e0b;color:#f59e0b;background:none;cursor:pointer;flex-shrink:0;">수정</button>':'')
-            + (canEdit?'<button onclick="_deleteWsrRule(\''+_esc(r.id)+'\')" style="font-size:10px;padding:2px 7px;border-radius:5px;border:1.5px solid #ef4444;color:#ef4444;background:none;cursor:pointer;flex-shrink:0;">삭제</button>':'')
+            + '<span style="font-size:'+bf+'0.5);font-weight:900;color:#22c55e;border:1px solid #22c55e;border-radius:4px;padding:1px 5px;flex-shrink:0;">📦 비거래</span>'
+            + '<span style="font-size:'+bf+'0.55);font-weight:900;color:'+runColor+';flex-shrink:0;">'+runLabel+'</span>'
+            + (canEdit?'<button id="wsrtest_'+_esc(r.id)+'" onclick="_testWsrRule(\''+_esc(r.id)+'\')" style="font-size:'+bf+'0.55);padding:2px 7px;border-radius:5px;border:1.5px solid var(--active-focus-color);color:var(--active-focus-color);background:none;cursor:pointer;flex-shrink:0;">🔍 테스트</button>':'')
+            + (canEdit?'<button onclick="_editWsrRule(\''+_esc(r.id)+'\')" style="font-size:'+bf+'0.55);padding:2px 7px;border-radius:5px;border:1.5px solid #f59e0b;color:#f59e0b;background:none;cursor:pointer;flex-shrink:0;">수정</button>':'')
+            + (canEdit?'<button onclick="_deleteWsrRule(\''+_esc(r.id)+'\')" style="font-size:'+bf+'0.55);padding:2px 7px;border-radius:5px;border:1.5px solid #ef4444;color:#ef4444;background:none;cursor:pointer;flex-shrink:0;">삭제</button>':'')
             + '</div>'
             + '<div style="display:flex;flex-wrap:wrap;gap:4px;">'
-            + (r.keyword?'<span class="mon-tag">🔑 '+_esc(r.keyword)+'</span>':'')
-            + (r.excludeKeyword?'<span class="mon-tag" style="color:#f87171;">🚫 '+_esc(r.excludeKeyword)+'</span>':'')
+            + kwTags + exKwTags
             + '<span class="mon-tag">⏱ '+(r.scanInterval||300)+'초</span>'
             + (enabled
-                ? '<button onclick="toggleBotRuleEnabled(\''+_esc(r.id)+'\',false)" style="font-size:9px;padding:1px 7px;border-radius:4px;border:1px solid #94a3b8;color:#94a3b8;background:none;cursor:pointer;">정지</button>'
-                : '<button onclick="toggleBotRuleEnabled(\''+_esc(r.id)+'\',true)" style="font-size:9px;padding:1px 7px;border-radius:4px;border:1px solid #22c55e;color:#22c55e;background:none;cursor:pointer;">시작</button>')
+                ? '<button onclick="toggleBotRuleEnabled(\''+_esc(r.id)+'\',false)" style="font-size:'+bf+'0.5);padding:1px 7px;border-radius:4px;border:1px solid #94a3b8;color:#94a3b8;background:none;cursor:pointer;">정지</button>'
+                : '<button onclick="toggleBotRuleEnabled(\''+_esc(r.id)+'\',true)" style="font-size:'+bf+'0.5);padding:1px 7px;border-radius:4px;border:1px solid #22c55e;color:#22c55e;background:none;cursor:pointer;">시작</button>')
             + '</div>'
-            + '<div style="font-size:9.5px;opacity:0.25;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+_esc(r.url||'')+'</div>'
+            + '<div style="font-size:'+bf+'0.5);opacity:0.25;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+_esc(r.url||'')+'</div>'
             + '</div>';
     }).join('');
 }
@@ -2236,6 +2727,7 @@ function _cancelWsrEdit() {
 
 function _editWsrRule(id) {
     var r = _botRules.find(function(r) { return r.id === id; }); if (!r) return;
+    if (typeof switchMonBotTab === 'function') switchMonBotTab(2);
     _wsrEditingKey = id;
     document.getElementById('wsrName').value     = r.name            || '';
     document.getElementById('wsrUrl').value      = r.url             || '';
@@ -2254,4 +2746,439 @@ function _deleteWsrRule(id) {
     var r = _botRules.find(function(r) { return r.id === id; }); if (!r) return;
     if (!confirm('"'+(r.name||id)+'" 규칙을 삭제하시겠습니까?')) return;
     _saveBotRules(_botRules.filter(function(r) { return r.id !== id; }));
+}
+
+// ===== 모니터링 현황 패널 렌더링 =====
+var _monhwFraudTotal = 0;
+var _monhwWatchTotal = 0;
+
+function _monhwDoneOverlay(card) {
+    if (card.querySelector('[data-done-overlay]')) return;
+    card.style.position = 'relative';
+    var ov = document.createElement('div');
+    ov.setAttribute('data-done-overlay','1');
+    ov.style.cssText = 'position:absolute;inset:0;border-radius:7px;background:rgba(15,23,42,0.72);backdrop-filter:blur(3px);z-index:3;display:flex;align-items:center;justify-content:center;overflow:hidden;cursor:default;';
+    // 대각선 2줄
+    var svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
+    svg.setAttribute('style','position:absolute;inset:0;width:100%;height:100%;pointer-events:none;');
+    svg.setAttribute('preserveAspectRatio','none');
+    var l1 = document.createElementNS('http://www.w3.org/2000/svg','line');
+    l1.setAttribute('x1','0'); l1.setAttribute('y1','0'); l1.setAttribute('x2','100%'); l1.setAttribute('y2','100%');
+    l1.setAttribute('stroke','rgba(255,255,255,0.18)'); l1.setAttribute('stroke-width','1.5');
+    var l2 = document.createElementNS('http://www.w3.org/2000/svg','line');
+    l2.setAttribute('x1','100%'); l2.setAttribute('y1','0'); l2.setAttribute('x2','0'); l2.setAttribute('y2','100%');
+    l2.setAttribute('stroke','rgba(255,255,255,0.18)'); l2.setAttribute('stroke-width','1.5');
+    svg.appendChild(l1); svg.appendChild(l2);
+    ov.appendChild(svg);
+    var label = document.createElement('span');
+    label.style.cssText = 'position:relative;z-index:1;font-size:calc(var(--base-font,20px)*0.7);font-weight:900;color:rgba(255,255,255,0.55);letter-spacing:0.12em;';
+    label.textContent = '처리완료';
+    ov.appendChild(label);
+    card.appendChild(ov);
+    card.style.opacity = '0.6';
+}
+
+// 개별 항목(행) 처리완료 표시 — 내용만 흐리게 + 중앙에 또렷한 배지
+function _monhwRowDoneOverlay(row, text, color) {
+    if (!row || row.querySelector('[data-row-done]')) return;
+    row.style.position = 'relative';
+    // 기존 자식들만 흐리게 (오버레이는 선명 유지)
+    Array.prototype.forEach.call(row.children, function(ch){
+        if (ch.getAttribute && ch.getAttribute('data-row-done')) return;
+        ch.style.filter = 'blur(1.3px)';
+        ch.style.opacity = '0.35';
+    });
+    var c = color || '#22c55e';
+    var ov = document.createElement('div');
+    ov.setAttribute('data-row-done','1');
+    ov.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:5;pointer-events:none;';
+    var lbl = document.createElement('span');
+    lbl.style.cssText = 'font-size:calc(var(--base-font,20px)*0.6);font-weight:900;color:'+c+';background:rgba(2,20,12,0.94);border:1.6px solid '+c+';border-radius:7px;padding:3px 16px;letter-spacing:0.1em;box-shadow:0 2px 10px rgba(0,0,0,0.55);white-space:nowrap;';
+    lbl.textContent = text || '✅ 처리완료';
+    ov.appendChild(lbl);
+    row.appendChild(ov);
+}
+
+function _monhwMakeItemRow(it, type, color) {
+    var row = document.createElement('div');
+    row.style.cssText = 'padding:5px 0;border-bottom:1px solid '+color+'1a;display:flex;align-items:center;gap:6px;flex-wrap:wrap;position:relative;transition:opacity 0.4s,filter 0.4s;';
+    if (it.tid) row.setAttribute('data-item-tid', it.tid);
+    if (it.tid) {
+        var tidLink = document.createElement('a');
+        tidLink.href = 'https://www.itemmania.com/sell/application.html?id='+it.tid;
+        tidLink.target = '_blank';
+        tidLink.style.cssText = 'font-size:calc(var(--base-font,20px)*0.7);font-weight:900;color:#38bdf8;letter-spacing:0.03em;flex-shrink:0;text-decoration:none;';
+        tidLink.textContent = '#'+_fmtTid(it.tid);
+        row.appendChild(tidLink);
+    }
+    if (type === 'watch' && it._keyword) {
+        var kwChip = document.createElement('span');
+        kwChip.style.cssText = 'font-size:calc(var(--base-font,20px)*0.4);font-weight:700;border-radius:3px;padding:1px 5px;white-space:nowrap;flex-shrink:0;background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.35);color:#4ade80;';
+        kwChip.textContent = '"' + it._keyword + '"';
+        row.appendChild(kwChip);
+    }
+    var titleEl = document.createElement('span');
+    titleEl.style.cssText = 'font-size:calc(var(--base-font,20px)*0.55);font-weight:700;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:80px;';
+    titleEl.textContent = it.t||'';
+    row.appendChild(titleEl);
+    if (it.p) {
+        var priceEl = document.createElement('span');
+        priceEl.style.cssText = 'color:'+color+';font-weight:900;font-size:calc(var(--base-font,20px)*0.55);flex-shrink:0;';
+        priceEl.textContent = Number(it.p).toLocaleString()+'원';
+        row.appendChild(priceEl);
+    }
+    if (type === 'fraud' || type === 'watch') {
+        var bkBtn = document.createElement('button');
+        bkBtn.setAttribute('data-bk', it.key||(it.t||'').substring(0,30));
+        bkBtn.setAttribute('data-title', it.t||'');
+        bkBtn.setAttribute('data-tid', it.tid||'');
+        bkBtn.setAttribute('data-price', it.p||0);
+        if (type === 'watch') bkBtn.setAttribute('data-bktype', 'watch');
+        var _bkColor = type === 'watch' ? '#16a34a' : '#dc2626';
+        bkBtn.style.cssText = 'font-size:calc(var(--base-font,20px)*0.45);padding:2px 7px;border-radius:4px;border:1.5px solid '+_bkColor+';color:'+_bkColor+';background:none;cursor:pointer;flex-shrink:0;font-weight:700;';
+        bkBtn.textContent = '필터제외';
+        row.appendChild(bkBtn);
+    }
+    return row;
+}
+
+function _monhwMakeCard(color, icon, title, keyword, count, timeStr, itemRows, type, groupKey) {
+    var card = document.createElement('div');
+    card.dataset.groupKey = groupKey || '';
+    card.style.cssText = 'position:relative;border:1.5px solid '+color+'77;border-radius:8px;background:'+color+'0d;flex-shrink:0;';
+
+    // 헤더
+    var hdr = document.createElement('div');
+    hdr.style.cssText = 'display:flex;align-items:center;gap:6px;padding:7px 10px;border-bottom:1px solid '+color+'33;';
+    var titleSpan = document.createElement('span');
+    titleSpan.style.cssText = 'font-size:calc(var(--base-font,20px)*0.6);font-weight:900;color:'+color+';flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+    titleSpan.textContent = icon+' '+title+(keyword?' · "'+keyword+'"':'');
+    var cntSpan = document.createElement('span');
+    cntSpan.setAttribute('data-count-el', '1');
+    cntSpan.style.cssText = 'font-size:calc(var(--base-font,20px)*0.5);color:#94a3b8;flex-shrink:0;';
+    cntSpan.textContent = count+'개';
+    var timeSpan = document.createElement('span');
+    timeSpan.style.cssText = 'font-size:calc(var(--base-font,20px)*0.45);color:#64748b;flex-shrink:0;margin:0 6px;';
+    timeSpan.textContent = timeStr;
+    hdr.appendChild(titleSpan); hdr.appendChild(cntSpan); hdr.appendChild(timeSpan);
+    card.appendChild(hdr);
+
+    // 아이템 목록
+    var itemList = document.createElement('div');
+    itemList.setAttribute('data-item-list', '1');
+    itemList.style.cssText = 'padding:4px 10px 6px;';
+    (itemRows||[]).forEach(function(it) {
+        itemList.appendChild(_monhwMakeItemRow(it, type, color));
+    });
+    card.appendChild(itemList);
+    return card;
+}
+
+var _monhwFraudShownTids = new Set();
+var _monhwRuleLastTids = {}; // {ruleKey: Set<tid>} — 규칙별 마지막 스캔 tids
+
+function _monhwAutoMarkGone(tid) {
+    var panels = ['monhwFraudContent', 'monhwWatchContent'];
+    panels.forEach(function(pid) {
+        var content = document.getElementById(pid);
+        if (!content) return;
+        var rows = content.querySelectorAll('[data-item-tid="'+tid+'"]');
+        rows.forEach(function(row) {
+            if (row._autoGone) return; // 이미 처리됨
+            row._autoGone = true;
+            row.style.opacity = '0.35';
+            row.style.filter = 'blur(1.5px)';
+            var badge = document.createElement('span');
+            badge.style.cssText = 'position:absolute;right:4px;top:50%;transform:translateY(-50%);font-size:10px;font-weight:900;color:#22c55e;background:#052e16;border:1px solid #22c55e44;border-radius:4px;padding:1px 6px;white-space:nowrap;pointer-events:none;';
+            badge.textContent = '✅ 물품 삭제됨';
+            row.appendChild(badge);
+            // 필터제외 버튼 비활성화
+            var bkBtn = row.querySelector('[data-bk]');
+            if (bkBtn) { bkBtn.disabled = true; bkBtn.style.opacity = '0.3'; }
+        });
+    });
+}
+
+// 3초마다 사기글 패널 아이템 실존 여부 체크 → 사라진 항목 즉시 블러
+(function() {
+    var _fCheckQueue = [];
+    var _fChecking = false;
+    function _fCheckNext() {
+        if (_fChecking) return;
+        var content = document.getElementById('monhwFraudContent');
+        if (!content) return;
+        var rows = content.querySelectorAll('[data-item-tid]');
+        var activeTids = [];
+        rows.forEach(function(row) {
+            if (!row._autoGone && !row._filterDone) {
+                var tid = row.getAttribute('data-item-tid');
+                if (tid) activeTids.push(tid);
+            }
+        });
+        if (!activeTids.length) return;
+        if (!_fCheckQueue.length) _fCheckQueue = activeTids.slice();
+        var tid = _fCheckQueue.shift();
+        if (!tid) return;
+        _fChecking = true;
+        fetch('http://1.221.202.77:20002/check_item.php?tid=' + encodeURIComponent(tid), { cache: 'no-store' })
+            .then(function(r){ return r.json(); })
+            .then(function(data) {
+                if (data.exists === false) {
+                    _monhwAutoMarkGone(tid);
+                    // 모든 사기글 항목이 블러됐으면 알림/깜빡임 중지
+                    var content = document.getElementById('monhwFraudContent');
+                    if (content) {
+                        var allRows = content.querySelectorAll('[data-item-tid]');
+                        var allGone = true;
+                        allRows.forEach(function(r) { if (!r._autoGone && !r._filterDone) allGone = false; });
+                        if (allGone && allRows.length > 0) {
+                            if (typeof _stopTabBlink === 'function') _stopTabBlink('fraud');
+                            if (typeof _removeChatBorderFlash === 'function') _removeChatBorderFlash();
+                            var tab = document.getElementById('fraudHeaderTab');
+                            if (tab) { tab.classList.remove('hdr-tab-blink'); tab.style.display = 'none'; }
+                        }
+                    }
+                }
+                _fChecking = false;
+            })
+            .catch(function(){ _fChecking = false; });
+    }
+    setInterval(_fCheckNext, 3000);
+})();
+
+// 사기글: '물품 삭제됨'(블러)·필터제외 처리된 항목은 일정 시간(60초) 후 패널에서 자동 제거
+// → 살아있는 사기글만 남고, 처리된 카드는 쌓이지 않음 (비거래 자동 제거와 동일 방식)
+var _FRAUD_GONE_TTL = 60000;
+setInterval(function() {
+    var content = document.getElementById('monhwFraudContent');
+    if (!content) return;
+    var now = Date.now();
+    var removed = false;
+    content.querySelectorAll('[data-item-tid]').forEach(function(row) {
+        if (!(row._autoGone || row._filterDone)) { row._doneAt = 0; return; } // 살아있는 사기글 → 유지
+        if (!row._doneAt) { row._doneAt = now; return; }                       // 막 처리됨 → 시작시각 기록
+        if (now - row._doneAt >= _FRAUD_GONE_TTL) {
+            var tid = row.getAttribute('data-item-tid');
+            if (tid) _monhwFraudShownTids.delete(tid); // 재감지 시 다시 표시 가능하게
+            if (row.parentNode) row.parentNode.removeChild(row);
+            removed = true;
+        }
+    });
+    if (!removed) return;
+    // 카드별 개수 갱신 + 항목 없는 카드 제거
+    Array.prototype.slice.call(content.children).forEach(function(card) {
+        if (!card.querySelector || card.id === 'monhwFraudEmpty') return;
+        if (!card.querySelector('[data-item-list]')) return;
+        var rows = card.querySelectorAll('[data-item-tid]');
+        if (!rows.length) { if (card.parentNode) card.parentNode.removeChild(card); return; }
+        var cntEl = card.querySelector('[data-count-el]');
+        if (cntEl) cntEl.textContent = rows.length + '개';
+    });
+    // 전체 카운트 갱신
+    _monhwFraudTotal = content.querySelectorAll('[data-item-tid]').length;
+    var cntBadge = document.getElementById('monhwFraudCount');
+    if (cntBadge) cntBadge.textContent = _monhwFraudTotal + '건';
+    // 모두 비면 placeholder 복원
+    if (!_monhwFraudTotal) {
+        if (cntBadge) cntBadge.style.display = 'none';
+        if (!document.getElementById('monhwFraudEmpty')) {
+            content.innerHTML = '<div id="monhwFraudEmpty" style="text-align:center;padding:60px 0;font-size:13px;opacity:0.3;">감지된 사기글이 없습니다.<br><span style="font-size:11px;">봇이 사기글을 감지하면 여기에 표시됩니다.</span></div>';
+        }
+    }
+}, 10000);
+
+function _monhwAddFraudCard(s) {
+    var content = document.getElementById('monhwFraudContent');
+    if (!content) return;
+    var empty = document.getElementById('monhwFraudEmpty');
+    if (empty) empty.style.display = 'none';
+    var now = new Date();
+    var timeStr = String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0')+':'+String(now.getSeconds()).padStart(2,'0');
+    var groupKey = s.ruleKeyword || s.ruleName || '감지';
+
+    // 동일 거래번호(tid) 중복 제거
+    var newRows = (s.itemRows||[]).filter(function(it) {
+        var tid = String(it.tid || '').trim();
+        if (!tid) return true; // tid 없는 항목은 통과
+        if (_monhwFraudShownTids.has(tid)) return false;
+        _monhwFraudShownTids.add(tid);
+        return true;
+    });
+    if (!newRows.length) return;
+    var itemCount = newRows.length;
+
+    var card = _monhwMakeCard('#ef4444','🚨',s.ruleName||'감지',s.ruleKeyword||'',itemCount,timeStr,newRows,'fraud',groupKey);
+    content.insertBefore(card, content.firstChild);
+
+    _monhwFraudTotal += itemCount;
+    var cnt = document.getElementById('monhwFraudCount');
+    if (cnt) { cnt.style.display = ''; cnt.textContent = _monhwFraudTotal+'건'; }
+    // 필터제외 이벤트 위임 (최초 1회)
+    if (!content._bkDelegated) {
+        content._bkDelegated = true;
+        content.addEventListener('click', function(e) {
+            var btn = e.target.closest('[data-bk]');
+            if (!btn) return;
+            if (typeof addBlockedFraud === 'function') addBlockedFraud(btn.dataset.bk, btn.dataset.title, btn.dataset.tid, btn.dataset.price);
+        });
+    }
+}
+
+var _monhwWatchShownTids = new Set();
+
+// 비거래 AI 피드백 저장 — game_knowledge DB에 학습 패턴 기록
+function _saveWatchFeedback(title, feedbackType) {
+    if (!title || !feedbackType) return;
+    var mdb = window._mysqlDb;
+    if (!mdb) return;
+    var term = String(title).trim().substring(0, 50);
+    if (!term) return;
+    var meaning = feedbackType === '비거래확정'
+        ? '비거래 확정 패턴 (모니터링 처리 완료됨)'
+        : '정상 거래 물품 패턴 (비거래 아님, 필터 제외됨)';
+    var now = Date.now();
+    mdb.ref('game_knowledge').child(String(now)).set({
+        term: term, meaning: meaning, type: feedbackType,
+        game: '아이템매니아', savedAt: now, source: 'auto-feedback'
+    });
+}
+
+// 비거래 AI 판별 — Claude Haiku로 각 항목이 확실한 비거래인지 확인 필요인지 분류
+async function _aiClassifyWatchItems(rows, context) {
+    if (!rows || !rows.length) return;
+    var watchContent = document.getElementById('monhwWatchContent');
+    if (!watchContent) return;
+
+    // 학습 패턴 로드 (game_knowledge에서 auto-feedback 타입)
+    var ntPatterns = [], normalPatterns = [];
+    try {
+        var mdb = window._mysqlDb;
+        if (mdb) {
+            var snap = await mdb.ref('game_knowledge').once('value');
+            var gkData = snap.val() || {};
+            Object.values(gkData).forEach(function(item) {
+                if (!item || !item.term || item.source !== 'auto-feedback') return;
+                if (item.type === '비거래확정') ntPatterns.push(item.term);
+                else if (item.type === '정상물품') normalPatterns.push(item.term);
+            });
+        }
+    } catch(e) {}
+
+    var titles = rows.map(function(it, i) {
+        return i + '. ' + (it.t || '(제목없음)');
+    });
+
+    var learnedCtx = '';
+    if (ntPatterns.length)     learnedCtx += '\n[비거래 확정 패턴 — 이전 처리 기록]\n' + ntPatterns.map(function(t){ return '- '+t; }).join('\n');
+    if (normalPatterns.length) learnedCtx += '\n[정상 물품 패턴 — 비거래 아님으로 확인됨]\n' + normalPatterns.map(function(t){ return '- '+t; }).join('\n');
+
+    var prompt = '[감지 규칙: ' + context + ']'
+        + (learnedCtx ? '\n' + learnedCtx : '') + '\n\n'
+        + '아이템매니아 판매글 목록입니다. 각 항목이 게임 내 비거래(귀속·거래불가·손사냥·대리 등 서비스)인지, 확인이 필요한 경우인지 분류하세요.\n'
+        + (learnedCtx ? '위의 학습된 패턴을 참고하여 유사한 항목은 동일하게 분류하세요.\n' : '')
+        + 'JSON 배열만 응답: [{"i":0,"v":"비거래"},{"i":1,"v":"확인필요"},...]\n\n'
+        + titles.join('\n');
+
+    try {
+        var res = await fetch('./claude-proxy.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                model: 'claude-haiku-4-5-20251001',
+                max_tokens: 500,
+                messages: [{ role: 'user', content: prompt }]
+            })
+        });
+        var d = await res.json();
+        var txt = (d.content && d.content[0] && d.content[0].text) || '';
+        var m = txt.match(/\[[\s\S]*?\]/);
+        if (!m) return;
+        var results = JSON.parse(m[0]);
+
+        results.forEach(function(r) {
+            var it = rows[r.i];
+            if (!it) return;
+            var tid = String(it.tid || '').trim();
+            if (!tid) return;
+            var domRow = watchContent.querySelector('[data-item-tid="' + tid + '"]');
+            if (!domRow || domRow.querySelector('[data-ai-badge]')) return;
+
+            var isNt = r.v === '비거래';
+            // AI 분류 캐시 저장 (리빌드 시 배지 복원용)
+            if (window._wAiType) window._wAiType[tid] = isNt ? 'nt' : 'check';
+            var badge = document.createElement('span');
+            badge.setAttribute('data-ai-badge', isNt ? '비거래' : '확인필요');
+            badge.style.cssText = 'font-size:calc(var(--base-font,20px)*0.4);font-weight:900;border-radius:4px;padding:1px 5px;white-space:nowrap;flex-shrink:0;'
+                + (isNt
+                    ? 'color:#ef4444;background:rgba(239,68,68,0.15);border:1.5px solid rgba(239,68,68,0.5);'
+                    : 'color:#f59e0b;background:rgba(245,158,11,0.15);border:1.5px solid rgba(245,158,11,0.5);');
+            badge.textContent = isNt ? '🚫 비거래' : '⚠️ 물품확인필요';
+
+            var tidLink = domRow.querySelector('a');
+            if (tidLink) domRow.insertBefore(badge, tidLink.nextSibling);
+            else domRow.insertBefore(badge, domRow.firstChild);
+        });
+    } catch(e) {}
+}
+
+function _monhwAddWatchCard(data) {
+    var content = document.getElementById('monhwWatchContent');
+    if (!content) return;
+    var empty = document.getElementById('monhwWatchEmpty');
+    if (empty) empty.style.display = 'none';
+    var now = new Date();
+    var timeStr = String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0')+':'+String(now.getSeconds()).padStart(2,'0');
+    var groupKey = data.label || data.keyword || '비거래 감지';
+
+    // 제목에서 실제 매칭된 키워드 역추적
+    var _allKws = (data.keyword || '').split(',').map(function(k){ return k.trim(); }).filter(Boolean);
+    (data.itemRows||[]).forEach(function(it) {
+        var title = (it.t || '').toLowerCase();
+        var matched = _allKws.find(function(kw){ return kw && title.indexOf(kw.toLowerCase()) !== -1; });
+        it._keyword = matched || '';
+    });
+
+    // 동일 거래번호(tid) 중복 제거
+    var newRows = (data.itemRows||[]).filter(function(it) {
+        var tid = String(it.tid || '').trim();
+        if (!tid) return true;
+        if (_monhwWatchShownTids.has(tid)) return false;
+        _monhwWatchShownTids.add(tid);
+        return true;
+    });
+    if (!newRows.length) return;
+    var itemCount = newRows.length;
+
+    var card = _monhwMakeCard('#22c55e','📦',data.label||data.keyword||'비거래 감지','',itemCount,timeStr,newRows,'watch',groupKey);
+    content.insertBefore(card, content.firstChild);
+
+    _monhwWatchTotal += itemCount;
+    var cnt = document.getElementById('monhwWatchCount');
+    if (cnt) { cnt.style.display = ''; cnt.textContent = _monhwWatchTotal+'건'; }
+
+    // AI 비거래 분류 — 새 항목에만 적용
+    _aiClassifyWatchItems(newRows, data.label || data.keyword || '비거래');
+}
+
+function _monhwClearFraud() {
+    var content = document.getElementById('monhwFraudContent');
+    if (!content) return;
+    content.innerHTML = '<div id="monhwFraudEmpty" style="text-align:center;padding:60px 0;font-size:13px;opacity:0.3;">감지된 사기글이 없습니다.<br><span style="font-size:11px;">봇이 사기글을 감지하면 여기에 표시됩니다.</span></div>';
+    content._bkDelegated = false;
+    _monhwFraudTotal = 0;
+    _monhwFraudShownTids = new Set();
+    _monhwRuleLastTids = {};
+    var cnt = document.getElementById('monhwFraudCount');
+    if (cnt) { cnt.style.display = 'none'; cnt.textContent = '0건'; }
+}
+
+function _monhwClearWatch() {
+    var content = document.getElementById('monhwWatchContent');
+    if (!content) return;
+    content.innerHTML = '<div id="monhwWatchEmpty" style="text-align:center;padding:60px 0;font-size:13px;opacity:0.3;">감지된 비거래가 없습니다.<br><span style="font-size:11px;">봇이 비거래를 감지하면 여기에 표시됩니다.</span></div>';
+    _monhwWatchTotal = 0;
+    _monhwWatchShownTids = new Set();
+    if (typeof window._wWatchClearHook === 'function') window._wWatchClearHook();
+    var cnt = document.getElementById('monhwWatchCount');
+    if (cnt) { cnt.style.display = 'none'; cnt.textContent = '0건'; }
 }
